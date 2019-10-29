@@ -2,6 +2,9 @@
 
 ## v1.5.0
 
+<a name="1_5_0_electron_main_extension"></a>
+- [[electron]](#1_5_0_electron_main_extension) Electron applications can now be configured/extended through `inversify`. Added new `electronMain` extension points to provide inversify container modules. [#8076](https://github.com/eclipse-theia/theia/pull/8076)
+
 <a name="breaking_changes_1.5.0">[Breaking Changes:](#breaking_changes_1.5.0)</a>
 
 - [output] `OutputWidget#setInput` has been removed. The _Output_ view automatically shows the channel when calling `OutputChannel#show`. Moved the `OutputCommands` namespace from the `output-contribution` to its dedicated `output-commands` module to overcome a DI cycle. [#8243](https://github.com/eclipse-theia/theia/pull/8243)
@@ -14,6 +17,8 @@
   - On the frontend `EnvVariableServer` should be used instead to access the current user home and available drives.
 <a name="1_4_0_usestorage_as_fs_provider"></a>
 - [[userstorage]](#1_4_0_usestorage_as_fs_provider) `UserStorageService` was replaced by the user data fs provider [#7908](https://github.com/eclipse-theia/theia/pull/7908)
+<a name="1_5_0_electron_window_options_ipc">
+- [[electron]](#1_5_0_electron_window_options_ipc) Removed the `set-window-options` and `get-persisted-window-options-additions` Electron IPC handlers from the Electron Main process.
 
 ## v1.4.0
 
