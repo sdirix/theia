@@ -49,6 +49,7 @@ import { MonacoEditorService } from '@theia/monaco/lib/browser/monaco-editor-ser
 import { UntitledResourceResolver } from './editor/untitled-resource';
 import { FileResourceResolver } from '@theia/filesystem/lib/browser';
 import { MainFileSystemEventService } from './main-file-system-event-service';
+import { TimelineMainImpl } from './timeline-main';
 
 export function setUpPluginApi(rpc: RPCProtocol, container: interfaces.Container): void {
     const commandRegistryMain = new CommandRegistryMainImpl(rpc, container);
@@ -147,4 +148,7 @@ export function setUpPluginApi(rpc: RPCProtocol, container: interfaces.Container
 
     const clipboardMain = new ClipboardMainImpl(container);
     rpc.set(PLUGIN_RPC_CONTEXT.CLIPBOARD_MAIN, clipboardMain);
+
+    const timelineMain = new TimelineMainImpl(rpc, container);
+    rpc.set(PLUGIN_RPC_CONTEXT.TIMELINE_MAIN, timelineMain);
 }

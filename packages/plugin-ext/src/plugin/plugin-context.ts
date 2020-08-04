@@ -119,7 +119,8 @@ import {
     CommentMode,
     CallHierarchyItem,
     CallHierarchyIncomingCall,
-    CallHierarchyOutgoingCall
+    CallHierarchyOutgoingCall,
+    TimelineItem
 } from './types-impl';
 import { SymbolKind } from '../common/plugin-api-rpc-model';
 import { EditorsAndDocumentsExtImpl } from './editors-and-documents';
@@ -150,6 +151,7 @@ import { TextEditorExt } from './text-editor';
 import { ClipboardExt } from './clipboard-ext';
 import { WebviewsExtImpl } from './webviews';
 import { ExtHostFileSystemEventService } from './file-system-event-service-ext-impl';
+import { TimelineExtImpl } from './timeline';
 
 export function createAPIFactory(
     rpc: RPCProtocol,
@@ -182,6 +184,7 @@ export function createAPIFactory(
     const extHostFileSystemEvent = rpc.set(MAIN_RPC_CONTEXT.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpc, editorsAndDocumentsExt));
     const scmExt = rpc.set(MAIN_RPC_CONTEXT.SCM_EXT, new ScmExtImpl(rpc, commandRegistry));
     const decorationsExt = rpc.set(MAIN_RPC_CONTEXT.DECORATIONS_EXT, new DecorationsExtImpl(rpc));
+    const timelineExt = rpc.set(MAIN_RPC_CONTEXT.TIMELINE_EXT, new TimelineExtImpl(rpc, commandRegistry));
     rpc.set(MAIN_RPC_CONTEXT.DEBUG_EXT, debugExt);
 
     return function (plugin: InternalPlugin): typeof theia {
@@ -492,6 +495,9 @@ export function createAPIFactory(
             registerTaskProvider(type: string, provider: theia.TaskProvider): theia.Disposable {
                 return tasks.registerTaskProvider(type, provider);
             },
+            registerTimelineProvider(scheme: string | string[], provider: theia.TimelineProvider): theia.Disposable {
+                return timelineExt.registerTimelineProvider(plugin, scheme, provider);
+            }
         };
 
         const onDidChangeLogLevel = new Emitter<theia.LogLevel>();
@@ -868,7 +874,8 @@ export function createAPIFactory(
             CommentMode,
             CallHierarchyItem,
             CallHierarchyIncomingCall,
-            CallHierarchyOutgoingCall
+            CallHierarchyOutgoingCall,
+            TimelineItem
         };
     };
 }
