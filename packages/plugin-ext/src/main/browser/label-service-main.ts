@@ -29,6 +29,7 @@ export class LabelServiceMainImpl implements LabelServiceMain {
     }
 
     $registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
+        // Dynamicily registered formatters should have priority over those contributed via package.json
         formatter.priority = true;
         const disposables: DisposableCollection = new DisposableCollection();
         for (const contribution of this.contributionProvider.getContributions()) {
