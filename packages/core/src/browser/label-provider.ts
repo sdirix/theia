@@ -89,16 +89,7 @@ export interface DidChangeLabelEvent {
     affects(element: object): boolean;
 }
 
-// copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/platform/label/common/label.ts#L31-L33
-/*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
-export interface FormatterChangeEvent {
-    scheme: string;
-}
-
-// copied from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/platform/label/common/label.ts#L35-L40
+// copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/platform/label/common/label.ts#L35-L49
 /*---------------------------------------------------------------------------------------------
 *  Copyright (c) Microsoft Corporation. All rights reserved.
 *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -110,17 +101,11 @@ export interface ResourceLabelFormatter {
     formatting: ResourceLabelFormatting;
 }
 
-// copied from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/platform/label/common/label.ts#L42-L49
-/*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
 export interface ResourceLabelFormatting {
     label: string; // myLabel:/${path}
     separator: '/' | '\\' | '';
     tildify?: boolean;
     normalizeDriveLetter?: boolean;
-    workspaceSuffix?: string;
     authorityPrefix?: string;
 }
 
@@ -225,11 +210,11 @@ export class DefaultUriLabelProviderContribution implements LabelProviderContrib
 
     private fireOnDidChange(): void {
         this.onDidChangeEmitter.fire({
-            affects: (element: URI) => this.canHandle(element) >= 1
+            affects: (element: URI) => this.canHandle(element) > 0
         });
     }
 
-    // copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/workbench/services/label/common/labelService.ts#L240-L274
+    // copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/workbench/services/label/common/labelService.ts
     /*---------------------------------------------------------------------------------------------
     *  Copyright (c) Microsoft Corporation. All rights reserved.
     *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -261,20 +246,10 @@ export class DefaultUriLabelProviderContribution implements LabelProviderContrib
         return label.replace(/\//g, formatting.separator);
     }
 
-    // copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/workbench/services/label/common/labelService.ts#L72-L74
-    /*---------------------------------------------------------------------------------------------
-    *  Copyright (c) Microsoft Corporation. All rights reserved.
-    *  Licensed under the MIT License. See License.txt in the project root for license information.
-    *--------------------------------------------------------------------------------------------*/
     private hasDriveLetter(path: string): boolean {
         return !!(path && path[2] === ':');
     }
 
-    // copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/workbench/services/label/common/labelService.ts#L108-L128
-    /*---------------------------------------------------------------------------------------------
-    *  Copyright (c) Microsoft Corporation. All rights reserved.
-    *  Licensed under the MIT License. See License.txt in the project root for license information.
-    *--------------------------------------------------------------------------------------------*/
     protected findFormatting(resource: URI): ResourceLabelFormatting | undefined {
         let bestResult: ResourceLabelFormatter | undefined;
 
