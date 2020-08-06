@@ -22,6 +22,7 @@ import { Prioritizeable } from '../common/types';
 import { Event, Emitter, Disposable, Path } from '../common';
 import { FrontendApplicationContribution } from './frontend-application';
 import { EnvVariablesServer } from '../common/env-variables/env-variables-protocol';
+import { ResourceLabelFormatter, ResourceLabelFormatting } from '../common/label-protocol';
 
 /**
  * @internal don't export it, use `LabelProvider.folderIcon` instead.
@@ -87,26 +88,6 @@ export interface LabelProviderContribution {
 
 export interface DidChangeLabelEvent {
     affects(element: object): boolean;
-}
-
-// copied and modified from https://github.com/microsoft/vscode/blob/1.44.2/src/vs/platform/label/common/label.ts#L35-L49
-/*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
-*--------------------------------------------------------------------------------------------*/
-export interface ResourceLabelFormatter {
-    scheme: string;
-    authority?: string;
-    priority?: boolean;
-    formatting: ResourceLabelFormatting;
-}
-
-export interface ResourceLabelFormatting {
-    label: string; // myLabel:/${path}
-    separator: '/' | '\\' | '';
-    tildify?: boolean;
-    normalizeDriveLetter?: boolean;
-    authorityPrefix?: string;
 }
 
 export interface URIIconReference {

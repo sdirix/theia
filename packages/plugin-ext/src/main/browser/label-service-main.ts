@@ -17,8 +17,9 @@
 import { LabelServiceMain } from '../../common/plugin-api-rpc';
 import { interfaces } from 'inversify';
 import { Disposable, DisposableCollection } from '@theia/core/lib/common/disposable';
-import { DefaultUriLabelProviderContribution, LabelProviderContribution, ResourceLabelFormatter } from '@theia/core/lib/browser';
+import { DefaultUriLabelProviderContribution, LabelProviderContribution } from '@theia/core/lib/browser';
 import { ContributionProvider } from '@theia/core/lib/common';
+import { ResourceLabelFormatter } from '@theia/core/lib/common/label-protocol';
 
 export class LabelServiceMainImpl implements LabelServiceMain {
     private readonly resourceLabelFormatters = new Map<number, Disposable>();

@@ -60,7 +60,7 @@ import { PreferenceSchema, PreferenceSchemaProperties } from '@theia/core/lib/co
 import { RecursivePartial } from '@theia/core/lib/common/types';
 import { ProblemMatcherContribution, ProblemPatternContribution, TaskDefinition } from '@theia/task/lib/common/task-protocol';
 import { ColorDefinition } from '@theia/core/lib/browser/color-registry';
-import { ResourceLabelFormatter } from '@theia/core/lib/browser';
+import { ResourceLabelFormatter } from '@theia/core/lib/common/label-protocol';
 
 namespace nls {
     export function localize(key: string, _default: string): string {
