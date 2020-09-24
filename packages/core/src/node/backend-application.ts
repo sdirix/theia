@@ -30,9 +30,30 @@ import { AddressInfo } from 'net';
 import { ApplicationPackage } from '@theia/application-package';
 
 export const BackendApplicationContribution = Symbol('BackendApplicationContribution');
+
+/**
+ * Entry point for hooking into the backend lifecycle.
+ */
 export interface BackendApplicationContribution {
-    initialize?(): void;
-    configure?(app: express.Application): void;
+    /**
+     * Called during the initialization of the backend application.
+     * Use this for functionality which has to run as early as possible.
+     */
+    initialize?(): MaybePromise<void>;
+
+    /**
+     * Called after the initialization of the backend application is complete.
+     * Use this to configure the Express app before it is started, for example
+     * to offer additional endpoints.
+     * @param app the express application to configure
+     */
+    configure?(app: express.Application): MaybePromise<void>;
+
+    /**
+     * Called right after the server for the Express app is started.
+     * Use this to additionally configure the server or as ready-signal for your service.
+     * @param server the backend server
+     */
     onStart?(server: http.Server | https.Server): MaybePromise<void>;
 
     /**
