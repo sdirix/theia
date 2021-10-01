@@ -482,6 +482,17 @@ export class ApplicationShell extends Widget {
         return dockPanel;
     }
 
+    public createExternalPanel(): TheiaDockPanel {
+        const renderer = this.dockPanelRendererFactory();
+        const dockPanel = new TheiaDockPanel({
+            mode: 'multiple-document',
+            renderer,
+            spacing: 0
+        }, this.corePreferences);
+        dockPanel.id = 'external';
+        return dockPanel;
+    }
+
     /**
      * Create the dock panel in the bottom shell area.
      */
@@ -1825,6 +1836,50 @@ export class ApplicationShell extends Widget {
             this.revealWidget(widget!.id);
         }
     }
+
+    protected externalWindows: Window[] = [];
+
+    moveWidgetToExternalWindow(widget: Widget): void {
+        const extWindow = window.open('', `subwindow${this.externalWindows.length}`);
+
+        if (!extWindow) {
+            console.error('Was not able to create a sub window');
+            return;
+        }
+
+        this.externalWindows.push(extWindow);
+
+        // styles.css is the extracted CSS from the webpack build (if there is one)
+        extWindow.document.write(`<!doctype html>
+                <html>
+                    <head>
+                        <title>External Window</title>
+                        <link rel="stylesheet" href="styles.css"/>
+                    </head>
+                    <body>
+                        <div id="pwidget"></div>
+                    </body>
+                </html>
+                `);
+        extWindow.document.close();
+
+        const element = window.document.getElementById('pwidget');
+        if (!element) {
+            console.error('Could not find dom element to attach to in external window');
+            return;
+        }
+
+        Widget.attach(widget, element);
+        widget.update();
+
+        extWindow.addEventListener('beforeunload', () => {
+            this.closeWidget(widget.id);
+        });
+        // should probably be debounced
+        extWindow.addEventListener('resize', () => {
+            widget.update();
+        });
+    }
 }
 
 /**
@@ -1834,7 +1889,7 @@ export namespace ApplicationShell {
     /**
      * The areas of the application shell where widgets can reside.
      */
-    export type Area = 'main' | 'top' | 'left' | 'right' | 'bottom';
+    export type Area = 'main' | 'top' | 'left' | 'right' | 'bottom' | 'external';
 
     /**
      * The _side areas_ are those shell areas that can be collapsed and expanded,
@@ -1846,7 +1901,7 @@ export namespace ApplicationShell {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     export function isValidArea(area?: any): area is ApplicationShell.Area {
-        const areas = ['main', 'top', 'left', 'right', 'bottom'];
+        const areas = ['main', 'top', 'left', 'right', 'bottom', 'external'];
         return (area !== undefined && typeof area === 'string' && areas.includes(area));
     }
 

@@ -20,10 +20,13 @@ import { DefaultWindowService } from '../../browser/window/default-window-servic
 import { FrontendApplicationContribution } from '../frontend-application';
 import { ClipboardService } from '../clipboard-service';
 import { BrowserClipboardService } from '../browser-clipboard-service';
+import { CommandContribution } from 'src/common';
+import { ExtractWidgetCommandContribution } from './extract-to-window';
 
 export default new ContainerModule(bind => {
     bind(DefaultWindowService).toSelf().inSingletonScope();
     bind(WindowService).toService(DefaultWindowService);
     bind(FrontendApplicationContribution).toService(DefaultWindowService);
     bind(ClipboardService).to(BrowserClipboardService).inSingletonScope();
+    bind(CommandContribution).to(ExtractWidgetCommandContribution).inSingletonScope();
 });

@@ -24,6 +24,7 @@ import { Message } from '@theia/core/shared/@phosphor/messaging';
 import { TreeViewWidget } from './tree-view-widget';
 import { DescriptionWidget } from '@theia/core/lib/browser/view-container';
 import { Emitter } from '@theia/core/lib/common';
+import { ExtractableWidget } from '@theia/core/lib/browser/window/extract-to-window';
 
 @injectable()
 export class PluginViewWidgetIdentifier {
@@ -32,7 +33,7 @@ export class PluginViewWidgetIdentifier {
 }
 
 @injectable()
-export class PluginViewWidget extends Panel implements StatefulWidget, DescriptionWidget {
+export class PluginViewWidget extends Panel implements StatefulWidget, DescriptionWidget, ExtractableWidget {
 
     @inject(MenuModelRegistry)
     protected readonly menus: MenuModelRegistry;
@@ -47,6 +48,8 @@ export class PluginViewWidget extends Panel implements StatefulWidget, Descripti
     readonly options: PluginViewWidgetIdentifier;
 
     currentViewContainerId: string | undefined;
+
+    isExtractable: boolean = true;
 
     constructor() {
         super();

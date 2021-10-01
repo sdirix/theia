@@ -259,6 +259,7 @@ export class ElectronMainApplication {
     async createWindow(asyncOptions: MaybePromise<TheiaBrowserWindowOptions> = this.getDefaultTheiaWindowOptions()): Promise<BrowserWindow> {
         let options = await asyncOptions;
         options = this.avoidOverlap(options);
+        options.webPreferences = { ...options.webPreferences, nativeWindowOpen: true };
         const electronWindow = new BrowserWindow(options);
         electronWindow.setMenuBarVisibility(false);
         this.attachReadyToShow(electronWindow);
