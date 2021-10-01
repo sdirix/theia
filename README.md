@@ -5,6 +5,31 @@
     <h3>Cloud & Desktop IDE Framework</h3>
 </div>
 
+# Multi Window PoC
+
+This PoC showcases multi window support in the Theia Electron example app
+
+Build and run via:
+
+```console
+yarn
+sed -e '/Host is not attached/s/^/\/\//g' -i node_modules/@phosphor/widgets/lib/widget.js
+yarn electron build
+yarn electron start
+```
+
+The PoC requires changes to PhosphorJS.
+If `sed` is not available on your system (or has a different interface), you can also manually edit `node_modules/@phosphor/widgets/lib/widget.js` and remove the check in line 913.
+
+Extract views to secondary windows via the `Sample menu > Move currently active view to new window` action.
+The PoC tries to determine the last active view of `main` or `bottom`.
+Usually it works best when the view to transfer is in `main`.
+
+The PoC includes a built version of the [VS Code webview sample](https://github.com/microsoft/vscode-extension-samples/blob/ac9bbf2e743ff0a25ebc82095c77b7c0a0fb4914/webview-sample/README.md).
+It can be started via the "Start cat coding session" command.
+
+# Theia
+
 <div id="badges" align="center">
 
   [![Gitpod Ready-to-Code](https://img.shields.io/badge/Gitpod-Ready--to--Code-blue?logo=gitpod)](https://gitpod.io/#https://github.com/eclipse-theia/theia)

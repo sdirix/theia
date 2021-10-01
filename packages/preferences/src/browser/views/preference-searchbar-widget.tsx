@@ -64,7 +64,8 @@ export class PreferencesSearchbarWidget extends ReactWidget implements StatefulW
      * @param e on-click mouse event.
      */
     protected clearSearchResults = (e: React.MouseEvent): void => {
-        const search = document.getElementById(PreferencesSearchbarWidget.SEARCHBAR_ID) as HTMLInputElement;
+        // use this.node.ownerDocument instead of document to generalize for cases where we are rendered in secondary windows
+        const search = this.node.ownerDocument.getElementById(PreferencesSearchbarWidget.SEARCHBAR_ID) as HTMLInputElement;
         if (search) {
             search.value = '';
             this.search(search.value);

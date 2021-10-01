@@ -46,7 +46,35 @@ export function loadVsRequire(context: any): Promise<any> {
     });
 }
 
-export function loadMonaco(vsRequire: any): Promise<void> {
+export function externalLoadVsRequire(extWindow: Window): Promise<any> {
+    // Monaco uses a custom amd loader that over-rides node's require.
+    // Keep a reference to an original require so we can restore it after executing the amd loader file.
+    const originalRequire = (extWindow as any).require;
+    return new Promise(resolve => {
+        if (extWindow.document.readyState === 'loading') {
+            extWindow.addEventListener('load', attachVsLoader, { once: true });
+        } else {
+            attachVsLoader();
+        }
+        function attachVsLoader(): void {
+            const vsLoader = extWindow.document.createElement('script');
+            vsLoader.type = 'text/javascript';
+            vsLoader.src = './vs/loader.js';
+            vsLoader.charset = 'utf-8';
+            vsLoader.addEventListener('load', () => {
+                // Save Monaco's amd require and restore the original require
+                const amdRequire = (extWindow as any).require;
+                if (originalRequire) {
+                    (extWindow as any).require = originalRequire;
+                }
+                resolve(amdRequire);
+            });
+            extWindow.document.body.appendChild(vsLoader);
+        };
+    });
+}
+
+export function loadMonaco(vsRequire: any, extWindow?: any): Promise<void> {
     return new Promise<void>(resolve => {
         if (nls.locale && ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].includes(nls.locale)) {
             vsRequire.config({
@@ -122,7 +150,7 @@ export function loadMonaco(vsRequire: any): Promise<void> {
                 wordHelper: any,
                 error: any, path: any,
                 textModel: any, strings: any, async: any) => {
-                const global: any = self;
+                const global: any = extWindow ?? self;
                 global.monaco.commands = commands;
                 global.monaco.actions = actions;
                 global.monaco.keybindings = Object.assign({}, keybindingsRegistry, keybindingResolver, resolvedKeybinding, keybindingLabels, keyCodes);

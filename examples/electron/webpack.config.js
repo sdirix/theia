@@ -14,4 +14,34 @@ config.module.rules.push({
     loader: require.resolve('@theia/application-manager/lib/expose-loader')
 }); */
 
+// Set to true to extract CSS to separate file for secondary windows
+const EXTRACT_CSS = false;
+
+if (EXTRACT_CSS) {
+    const MiniCssExtractPlugin = require("mini-css-extract-plugin");
+
+    config.module.rules.push(
+        {
+            test: /\.css$/,
+            use: [MiniCssExtractPlugin.loader, "css-loader"],
+        });
+
+    config.optimization = {
+        splitChunks: {
+            cacheGroups: {
+                styles: {
+                    name: "styles",
+                    type: "css/mini-extract",
+                    chunks: "all",
+                    enforce: true,
+                },
+            },
+        },
+    };
+
+    config.plugins.push(new MiniCssExtractPlugin({
+        filename: "[name].css",
+    }));
+}
+
 module.exports = config;

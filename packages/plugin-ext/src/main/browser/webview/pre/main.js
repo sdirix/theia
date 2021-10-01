@@ -30,7 +30,6 @@
  *   fakeLoad: boolean
  * }} WebviewHost
  */
-
 (function () {
     'use strict';
 

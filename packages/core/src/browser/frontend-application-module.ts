@@ -44,7 +44,7 @@ import {
     TabBarRendererFactory, ShellLayoutRestorer,
     SidePanelHandler, SidePanelHandlerFactory,
     SidebarMenuWidget, SidebarTopMenuWidgetFactory,
-    SplitPositionHandler, DockPanelRendererFactory, ApplicationShellLayoutMigration, ApplicationShellLayoutMigrationError, SidebarBottomMenuWidgetFactory
+    SplitPositionHandler, DockPanelRendererFactory, ApplicationShellLayoutMigration, ApplicationShellLayoutMigrationError, SidebarBottomMenuWidgetFactory, ExternalPanelsHandler
 } from './shell';
 import { StatusBar, StatusBarImpl } from './status-bar/status-bar';
 import { LabelParser } from './label-parser';
@@ -385,4 +385,6 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
         child.bind(Coordinate).toConstantValue(position);
         return child.get(BreadcrumbPopupContainer);
     });
+
+    bind(ExternalPanelsHandler).toSelf().inSingletonScope();
 });
