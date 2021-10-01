@@ -14,12 +14,20 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { QuickInputService } from '@theia/core/lib/browser';
+import { QuickInputService, Widget } from '@theia/core/lib/browser';
 import {
     Command, CommandContribution, CommandRegistry, MAIN_MENU_BAR,
     MenuContribution, MenuModelRegistry, MenuNode, MessageService, SubMenuOptions
 } from '@theia/core/lib/common';
 import { inject, injectable, interfaces } from '@theia/core/shared/inversify';
+import * as ReactDOM from '@theia/core/shared/react-dom';
+import { ExampleWidget, reactInstance } from './ExampleWidget';
+import { GettingStartedWidget } from '@theia/getting-started/lib/browser/getting-started-widget';
+
+const NewSubWindow: Command = {
+    id: 'new-sub-window',
+    label: 'Open "Getting started" in new window'
+};
 
 const SampleCommand: Command = {
     id: 'sample-command',
@@ -44,7 +52,98 @@ export class SampleCommandContribution implements CommandContribution {
     @inject(MessageService)
     protected readonly messageService: MessageService;
 
+    @inject(GettingStartedWidget)
+    protected readonly gettingStartedWidget: GettingStartedWidget;
+
     registerCommands(commands: CommandRegistry): void {
+        commands.registerCommand(NewSubWindow, {
+            execute: () => {
+                // normal url: 'file:///home/stefan/Git/Theia/theia/examples/electron/lib/index.html?port=38971#!empty'
+                // const subWindow = window.open('file:///home/stefan/Git/Theia/theia/examples/subindex.html', 'SubView');
+                const subWindow = window.open('', 'SubView');
+
+                if (!subWindow) {
+                    console.error('Was not able to create a sub window');
+                    return;
+                }
+
+                console.log('Successfully opened sub window');
+                // eslint-disable-next-line no-null/no-null
+                // console.log('subwindow', JSON.stringify(subWindow, null, 2));
+
+                console.log('Write to subwindow');
+                subWindow?.document.write(`<!doctype html>
+                <html>
+                    <head>
+                        <title>Sub Window</title>
+                    </head>
+                    <body>
+                        <div id="pwidget"></div>
+                        <div id="react"></div>
+                        <script>console.log("I can execute JS");</script>
+                    </body>
+                </html>
+                `);
+                subWindow?.document.close();
+
+                console.log('SubWindow document', subWindow.document);
+
+                const widget: ExampleWidget = new ExampleWidget();
+
+                console.log('subwindow root node', subWindow.document.getRootNode());
+
+                console.log('try to find element to attach to');
+                const element = subWindow.document.getElementById('pwidget');
+                console.log('found: ', element);
+
+                console.log('subwindow root node', subWindow.document.getRootNode());
+
+                const reactElement = subWindow.document.getElementById('react');
+
+                if (reactElement && false) {
+                    console.log('Render React');
+                    ReactDOM.render(reactInstance, reactElement);
+                    console.log('Finished rendering react');
+                }
+
+                if (element) {
+                    console.log('Try to attach Widget');
+
+                    try {
+                        if (false) {
+                            // eslint-disable-next-line no-null/no-null
+                            Widget.attach(widget, element!, null);
+                            widget.update();
+                        }
+
+                        // @ts-ignore
+                        // this.gettingStartedWidget.oldRender = this.gettingStartedWidget.render;
+
+                        // const reactPortalElement = subWindow.document.getElementById('pwidgetreact')!;
+
+                        // const mywidget = this.gettingStartedWidget;
+                        // // @ts-ignore
+                        // // eslint-disable-next-line @typescript-eslint/tslint/config
+                        // this.gettingStartedWidget.render = function () {
+                        //     console.log('Overriden render was executed');
+                        //     // @ts-ignore
+                        //     return ReactDOM.createPortal(mywidget.oldRender(), reactPortalElement);
+                        // };
+                        // eslint-disable-next-line no-null/no-null
+                        Widget.attach(this.gettingStartedWidget, element, null);
+                        this.gettingStartedWidget.update();
+
+                    } catch (error) {
+                        console.log('Error when attaching', error);
+                    }
+                    console.log('Finished attaching widget');
+                }
+
+                console.log('finished');
+
+            }
+        });
+
         commands.registerCommand(SampleCommand, {
             execute: () => {
                 alert('This is a sample command!');
@@ -105,6 +204,10 @@ export class SampleMenuContribution implements MenuContribution {
         menus.registerMenuAction(subSubMenuPath, {
             commandId: SampleCommand2.id,
             order: '3'
+        });
+        menus.registerMenuAction(subMenuPath, {
+            commandId: NewSubWindow.id,
+            order: '-1'
         });
         const placeholder = new PlaceholderMenuNode([...subSubMenuPath, 'placeholder'].join('-'), 'Placeholder', { order: '0' });
         menus.registerMenuNode(subSubMenuPath, placeholder);

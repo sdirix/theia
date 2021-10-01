@@ -221,6 +221,7 @@ export class ElectronMainApplication {
     async createWindow(asyncOptions: MaybePromise<TheiaBrowserWindowOptions> = this.getDefaultTheiaWindowOptions()): Promise<BrowserWindow> {
         let options = await asyncOptions;
         options = this.avoidOverlap(options);
+        options.webPreferences = { ...options.webPreferences, nativeWindowOpen: true };
         const electronWindow = new BrowserWindow(options);
         electronWindow.setMenuBarVisibility(false);
         this.attachReadyToShow(electronWindow);
@@ -273,6 +274,7 @@ export class ElectronMainApplication {
 
     async openDefaultWindow(): Promise<BrowserWindow> {
         const [uri, electronWindow] = await Promise.all([this.createWindowUri(), this.createWindow()]);
+        console.log('open default window: ', uri.withFragment(DEFAULT_WINDOW_HASH).toString(true));
         electronWindow.loadURL(uri.withFragment(DEFAULT_WINDOW_HASH).toString(true));
         return electronWindow;
     }
