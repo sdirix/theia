@@ -41,6 +41,8 @@ export class ColorApplicationContribution implements FrontendApplicationContribu
 
     private static themeBackgroundId = 'theme.background';
 
+    protected document: Document = document;
+
     onStart(): void {
         for (const contribution of this.colorContributions.getContributions()) {
             contribution.registerColors(this.colors);

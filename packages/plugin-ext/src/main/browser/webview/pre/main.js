@@ -30,7 +30,7 @@
  *   fakeLoad: boolean
  * }} WebviewHost
  */
-
+debugger;
 (function () {
     'use strict';
 
@@ -614,6 +614,7 @@
         });
     }
 
+    debugger;
     if (typeof module !== 'undefined') {
         module.exports = createWebviewManager;
     } else {

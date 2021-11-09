@@ -14,7 +14,7 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { QuickInputService, Widget } from '@theia/core/lib/browser';
+import { ExternalPanelsHandler, QuickInputService, Widget } from '@theia/core/lib/browser';
 import {
     Command, CommandContribution, CommandRegistry, MAIN_MENU_BAR,
     MenuContribution, MenuModelRegistry, MenuNode, MessageService, SubMenuOptions
@@ -24,9 +24,11 @@ import * as ReactDOM from '@theia/core/shared/react-dom';
 import { ExampleWidget, reactInstance } from './ExampleWidget';
 import { GettingStartedWidget } from '@theia/getting-started/lib/browser/getting-started-widget';
 
+import { externalLoadVsRequire, loadMonaco } from '@theia/monaco/lib/browser/monaco-loader';
+
 const NewSubWindow: Command = {
     id: 'new-sub-window',
-    label: 'Open "Getting started" in new window'
+    label: 'Move currently active view to new window'
 };
 
 const SampleCommand: Command = {
@@ -55,15 +57,54 @@ export class SampleCommandContribution implements CommandContribution {
     @inject(GettingStartedWidget)
     protected readonly gettingStartedWidget: GettingStartedWidget;
 
+    @inject(ExternalPanelsHandler)
+    protected readonly externalPanelsHandler: ExternalPanelsHandler;
+
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(NewSubWindow, {
-            execute: () => {
+            execute: async () => {
                 // normal url: 'file:///home/stefan/Git/Theia/theia/examples/electron/lib/index.html?port=38971#!empty'
                 // const subWindow = window.open('file:///home/stefan/Git/Theia/theia/examples/subindex.html', 'SubView');
                 const subWindow = window.open('', 'SubView');
 
                 if (!subWindow) {
                     console.error('Was not able to create a sub window');
+                    return;
+                }
+
+                console.log('Prepare window');
+                const windowNeedsToBePrepared = this.externalPanelsHandler.prepareWindow(subWindow);
+                debugger;
+                if (windowNeedsToBePrepared) {
+                    console.log('Window needs to be prepared');
+
+                    if (Math.min(0, 1) === 0) {
+                        console.log('Add VS Code require to the window');
+                        const amdRequireInExtWindow = await externalLoadVsRequire(subWindow);
+                        console.log('Load monaco');
+                        await loadMonaco(amdRequireInExtWindow, subWindow);
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const subWindowColorRegistry = (subWindow as any).monaco.color.getColorRegistry();
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        (window as any).monaco.color.getColorRegistry().getColors().forEach((ce: any) => {
+                            subWindowColorRegistry.registerColor(ce.id, ce.defaults, ce.description);
+                        });
+                    } else {
+                        // doesn't seem to work
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        // (subWindow as any).monaco = (window as any).monaco;
+                    }
+                    console.log('Create panel');
+                    this.externalPanelsHandler.createPanelInExternalWindow(subWindow);
+                    console.log('Finished preparing window');
+                } else {
+                    console.log('Window did not need to be prepared');
+                }
+
+                console.log('Move current view');
+                this.externalPanelsHandler.moveCurrentView(subWindow);
+
+                if (Math.min(0, 1) === 0) {
                     return;
                 }
 
@@ -187,36 +228,36 @@ export class SampleMenuContribution implements MenuContribution {
         menus.registerSubmenu(subMenuPath, 'Sample Menu', {
             order: '2' // that should put the menu right next to the File menu
         });
-        menus.registerMenuAction(subMenuPath, {
-            commandId: SampleCommand.id,
-            order: '0'
-        });
-        menus.registerMenuAction(subMenuPath, {
-            commandId: SampleCommand2.id,
-            order: '2'
-        });
-        const subSubMenuPath = [...subMenuPath, 'sample-sub-menu'];
-        menus.registerSubmenu(subSubMenuPath, 'Sample sub menu', { order: '2' });
-        menus.registerMenuAction(subSubMenuPath, {
-            commandId: SampleCommand.id,
-            order: '1'
-        });
-        menus.registerMenuAction(subSubMenuPath, {
-            commandId: SampleCommand2.id,
-            order: '3'
-        });
+        // menus.registerMenuAction(subMenuPath, {
+        //     commandId: SampleCommand.id,
+        //     order: '0'
+        // });
+        // menus.registerMenuAction(subMenuPath, {
+        //     commandId: SampleCommand2.id,
+        //     order: '2'
+        // });
+        // const subSubMenuPath = [...subMenuPath, 'sample-sub-menu'];
+        // menus.registerSubmenu(subSubMenuPath, 'Sample sub menu', { order: '2' });
+        // menus.registerMenuAction(subSubMenuPath, {
+        //     commandId: SampleCommand.id,
+        //     order: '1'
+        // });
+        // menus.registerMenuAction(subSubMenuPath, {
+        //     commandId: SampleCommand2.id,
+        //     order: '3'
+        // });
         menus.registerMenuAction(subMenuPath, {
             commandId: NewSubWindow.id,
             order: '-1'
         });
-        const placeholder = new PlaceholderMenuNode([...subSubMenuPath, 'placeholder'].join('-'), 'Placeholder', { order: '0' });
-        menus.registerMenuNode(subSubMenuPath, placeholder);
+        // const placeholder = new PlaceholderMenuNode([...subSubMenuPath, 'placeholder'].join('-'), 'Placeholder', { order: '0' });
+        // menus.registerMenuNode(subSubMenuPath, placeholder);
 
-        /**
-         * Register an action menu with an invalid command (un-registered and without a label) in order
-         * to determine that menus and the layout does not break on startup.
-         */
-        menus.registerMenuAction(subMenuPath, { commandId: 'invalid-command' });
+        // /**
+        //  * Register an action menu with an invalid command (un-registered and without a label) in order
+        //  * to determine that menus and the layout does not break on startup.
+        //  */
+        // menus.registerMenuAction(subMenuPath, { commandId: 'invalid-command' });
     }
 
 }

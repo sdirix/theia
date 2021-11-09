@@ -39,6 +39,7 @@ import { waitForRevealed, waitForClosed } from '../widgets';
 import { CorePreferences } from '../core-preferences';
 import { environment } from '../../common';
 import { BreadcrumbsRendererFactory } from '../breadcrumbs/breadcrumbs-renderer';
+import { ExternalPanelsHandler } from './external-panels-handler';
 
 /** The class name added to ApplicationShell instances. */
 const APPLICATION_SHELL_CLASS = 'theia-ApplicationShell';
@@ -161,6 +162,11 @@ export class ApplicationShell extends Widget {
      * outline view.
      */
     readonly rightPanelHandler: SidePanelHandler;
+
+    /**
+     * Handler for panels which are not part of the main window.
+     */
+    readonly externalPanelsHandler: ExternalPanelsHandler;
 
     /**
      * General options for the application shell.
@@ -479,6 +485,21 @@ export class ApplicationShell extends Widget {
         dockPanel.id = MAIN_AREA_ID;
         dockPanel.widgetAdded.connect((_, widget) => this.fireDidAddWidget(widget));
         dockPanel.widgetRemoved.connect((_, widget) => this.fireDidRemoveWidget(widget));
+        return dockPanel;
+    }
+
+    public createExternalPanel(): TheiaDockPanel {
+        const renderer = this.dockPanelRendererFactory();
+        // renderer.tabBarClasses.push(MAIN_BOTTOM_AREA_CLASS);
+        // renderer.tabBarClasses.push(MAIN_AREA_CLASS);
+        const dockPanel = new TheiaDockPanel({
+            mode: 'multiple-document',
+            renderer,
+            spacing: 0
+        }, this.corePreferences);
+        dockPanel.id = 'external';
+        // dockPanel.widgetAdded.connect((_, widget) => this.fireDidAddWidget(widget));
+        // dockPanel.widgetRemoved.connect((_, widget) => this.fireDidRemoveWidget(widget));
         return dockPanel;
     }
 
@@ -1852,7 +1873,7 @@ export namespace ApplicationShell {
     /**
      * The areas of the application shell where widgets can reside.
      */
-    export type Area = 'main' | 'top' | 'left' | 'right' | 'bottom';
+    export type Area = 'main' | 'top' | 'left' | 'right' | 'bottom' | 'external';
 
     /**
      * The _side areas_ are those shell areas that can be collapsed and expanded,
@@ -1864,7 +1885,7 @@ export namespace ApplicationShell {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     export function isValidArea(area?: any): area is ApplicationShell.Area {
-        const areas = ['main', 'top', 'left', 'right', 'bottom'];
+        const areas = ['main', 'top', 'left', 'right', 'bottom', 'external'];
         return (area !== undefined && typeof area === 'string' && areas.includes(area));
     }
 

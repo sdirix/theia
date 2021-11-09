@@ -243,7 +243,7 @@ export abstract class AbstractDialog<T> extends BaseWidget {
         }
     }
 
-    open(): Promise<T | undefined> {
+    open(ownerDocument?: Document): Promise<T | undefined> {
         if (this.resolve) {
             return Promise.reject(new Error('The dialog is already opened.'));
         }
@@ -256,7 +256,7 @@ export abstract class AbstractDialog<T> extends BaseWidget {
                 this.reject = undefined;
             }));
 
-            Widget.attach(this, document.body);
+            Widget.attach(this, (ownerDocument ?? document).body);
             this.activate();
         });
     }

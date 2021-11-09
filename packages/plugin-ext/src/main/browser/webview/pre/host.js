@@ -19,6 +19,7 @@
 *--------------------------------------------------------------------------------------------*/
 // copied and modified from https://github.com/microsoft/vscode/blob/ba40bd16433d5a817bfae15f3b4350e18f144af4/src/vs/workbench/contrib/webview/browser/pre/host.js
 // @ts-check
+debugger;
 (function () {
     const id = document.location.search.match(/\bid=([\w-]+)/)[1];
 
@@ -44,6 +45,13 @@
 
         postMessage(channel, data) {
             window.parent.postMessage({ target: id, channel, data }, '*');
+            let currentWindow = window;
+            while (currentWindow.parent !== currentWindow) {
+                currentWindow = currentWindow.parent;
+                if (currentWindow.opener) {
+                    currentWindow.opener.postMessage({ target: id, channel, data, fromExternal: true }, '*');
+                }
+            }
         }
 
         onMessage(channel, handler) {
@@ -105,6 +113,8 @@
             return false;
         }
     }
+
+    debugger;
 
     window.createWebviewManager({
         postMessage: hostMessaging.postMessage.bind(hostMessaging),
