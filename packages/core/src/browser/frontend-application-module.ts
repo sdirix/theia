@@ -119,6 +119,8 @@ import {
 } from './breadcrumbs';
 import { RendererHost } from './widgets';
 import { TooltipService, TooltipServiceImpl } from './tooltip-service';
+import { ExtractWidgetCommandContribution } from './window/extract-to-window';
+import { ExtractWindowToolbarContribution } from './extract-window-toolbar-contribution';
 
 export { bindResourceProvider, bindMessageService, bindPreferenceService };
 
@@ -390,4 +392,10 @@ export const frontendApplicationModule = new ContainerModule((bind, unbind, isBo
         child.bind(Coordinate).toConstantValue(position);
         return child.get(BreadcrumbPopupContainer);
     });
+
+    bind(ExtractWidgetCommandContribution).toSelf().inSingletonScope();
+    bind(CommandContribution).toService(ExtractWidgetCommandContribution);
+
+    bind(ExtractWindowToolbarContribution).toSelf().inSingletonScope();
+    bind(TabBarToolbarContribution).toService(ExtractWindowToolbarContribution);
 });

@@ -120,6 +120,20 @@ export class DockPanelRenderer implements DockLayout.IRenderer {
     }
 }
 
+class ExternalRootWidget extends Widget {
+
+    constructor() {
+        super();
+        this.layout = new BoxLayout();
+    }
+
+    addWidget(widget: Widget): void {
+        (this.layout as BoxLayout).addWidget(widget);
+        BoxPanel.setStretch(widget, 1);
+    }
+
+}
+
 /**
  * Data stored while dragging widgets in the shell.
  */
@@ -272,6 +286,26 @@ export class ApplicationShell extends Widget {
                 }
             });
         }
+
+        // messaging with external windows
+        window.addEventListener('message', (event: MessageEvent) => {
+            console.log('Message on main window', event);
+            if (event.data.fromExternal) {
+                console.log('Message comes from external window');
+                return;
+            }
+            if (event.data.fromMain) {
+                console.log('Message has mainWindow marker, therefore ignore it');
+                return;
+            }
+            console.log('Delegate main window message to external windows', event);
+            this.externalWindows.forEach(externalWindow => {
+                if (!externalWindow.window.closed) {
+                    console.log('Delegate main window message to external window');
+                    externalWindow.window.postMessage({ ...event.data, fromMain: true }, '*');
+                }
+            });
+        });
     }
 
     protected initSidebarVisibleKeyContext(): void {
@@ -1855,6 +1889,7 @@ export class ApplicationShell extends Widget {
                     <head>
                         <title>External Window</title>
                         <link rel="stylesheet" href="styles.css"/>
+                        <link rel="stylesheet" href="vs/editor/editor.main.css"/>
                     </head>
                     <body>
                         <div id="pwidget"></div>
@@ -1863,17 +1898,23 @@ export class ApplicationShell extends Widget {
                 `);
         extWindow.document.close();
 
-        const element = window.document.getElementById('pwidget');
+        const element = extWindow.document.getElementById('pwidget');
         if (!element) {
             console.error('Could not find dom element to attach to in external window');
             return;
         }
 
-        Widget.attach(widget, element);
+        const rootWidget = new ExternalRootWidget();
+        Widget.attach(rootWidget, element);
+        rootWidget.addWidget(widget);
         widget.update();
 
         extWindow.addEventListener('beforeunload', () => {
             this.closeWidget(widget.id);
+            const extIndex = this.externalWindows.indexOf(extWindow);
+            if (extIndex > -1) {
+                this.externalWindows.splice(extIndex, 1);
+            }
         });
         // should probably be debounced
         extWindow.addEventListener('resize', () => {

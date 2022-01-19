@@ -13,7 +13,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
-import { inject, injectable } from 'shared/inversify';
+import { inject, injectable } from 'inversify';
 import { Command, CommandContribution, CommandRegistry } from '../../common/command';
 import { ApplicationShell } from '../shell';
 import { Widget } from '../widgets';
