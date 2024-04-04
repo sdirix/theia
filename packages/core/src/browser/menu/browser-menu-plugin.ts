@@ -461,7 +461,7 @@ export class MenuCommandRegistry extends PhosphorCommandRegistry {
         const unregisterCommand = this.addCommand(id, {
             execute: () => commandExecutor.executeCommand(menuPath, id, ...args),
             label: menu.label,
-            icon: menu.icon,
+            iconClass: menu.icon,
             isEnabled: () => enabled,
             isVisible: () => visible,
             isToggled: () => toggled
