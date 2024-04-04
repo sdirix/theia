@@ -13,7 +13,7 @@
 //
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
-import { UUID } from '@theia/core/shared/@phosphor/coreutils';
+import { UUID } from '@theia/core/shared/@lumino/coreutils';
 import { inject, injectable } from '@theia/core/shared/inversify';
 import { Terminal, TerminalOptions, PseudoTerminalOptions, ExtensionTerminalOptions, TerminalState } from '@theia/plugin';
 import { TerminalServiceExt, TerminalServiceMain, PLUGIN_RPC_CONTEXT } from '../common/plugin-api-rpc';
@@ -47,7 +47,7 @@ export function getIconClass(options: theia.TerminalOptions | theia.ExtensionTer
  * Provides high level terminal plugin api to use in the Theia plugins.
  * This service allow(with help proxy) create and use terminal emulator.
  */
- @injectable()
+@injectable()
 export class TerminalServiceExtImpl implements TerminalServiceExt {
     private readonly proxy: TerminalServiceMain;
 

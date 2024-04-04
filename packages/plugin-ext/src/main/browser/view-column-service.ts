@@ -17,8 +17,8 @@
 import { injectable, inject } from '@theia/core/shared/inversify';
 import { Emitter, Event } from '@theia/core/lib/common/event';
 import { ApplicationShell } from '@theia/core/lib/browser/shell/application-shell';
-import { toArray } from '@theia/core/shared/@phosphor/algorithm';
-import { TabBar, Widget } from '@theia/core/shared/@phosphor/widgets';
+import { toArray } from '@theia/core/shared/@lumino/algorithm';
+import { TabBar, Widget } from '@theia/core/shared/@lumino/widgets';
 
 @injectable()
 export class ViewColumnService {

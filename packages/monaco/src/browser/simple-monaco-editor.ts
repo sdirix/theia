@@ -24,7 +24,7 @@ import { Disposable, DisposableCollection, Emitter, TextDocumentContentChangeDel
 import { MonacoEditorModel } from './monaco-editor-model';
 import { Dimension, EditorMouseEvent, MouseTarget, Position, TextDocumentChangeEvent } from '@theia/editor/lib/browser';
 import * as monaco from '@theia/monaco-editor-core';
-import { ElementExt } from '@theia/core/shared/@phosphor/domutils';
+import { ElementExt } from '@theia/core/shared/@lumino/domutils';
 
 export class SimpleMonacoEditor extends MonacoEditorServices implements Disposable {
 
