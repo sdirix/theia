@@ -22,7 +22,7 @@ import { Disposable, DisposableCollection } from '@theia/core';
 import { DEFAULT_TERMINAL_RENDERER_TYPE, TerminalPreferences, TerminalRendererType, isTerminalRendererType } from '@theia/terminal/lib/browser/terminal-preferences';
 import { TerminalThemeService } from '@theia/terminal/lib/browser/terminal-theme-service';
 import { TestOutputSource, TestOutputUIModel } from './test-output-ui-model';
-import debounce = require('p-debounce');
+import debounce = require('lm-debounce');
 
 @injectable()
 export class TestOutputWidget extends BaseWidget {
