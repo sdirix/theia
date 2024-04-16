@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import debounce = require('lm-debounce');
+import debounce = require('p-debounce');
 import { injectable, inject, postConstruct, interfaces, Container } from '@theia/core/shared/inversify';
 import * as monaco from '@theia/monaco-editor-core';
 import { IConfigurationService } from '@theia/monaco-editor-core/esm/vs/platform/configuration/common/configuration';

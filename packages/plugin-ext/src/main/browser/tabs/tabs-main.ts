@@ -57,7 +57,7 @@ export class TabsMainImpl implements TabsMain, Disposable {
         this.createTabsModel();
 
         const tabBars = this.applicationShell.mainPanel.tabBars();
-        for (let tabBar; tabBar = tabBars.next();) {
+        for (const tabBar of Array.from(tabBars)) {
             this.attachListenersToTabBar(tabBar);
         }
 
