@@ -39,6 +39,7 @@ import { FrontendChatServiceImpl } from './frontend-chat-service';
 import { CustomAgentFactory } from './custom-agent-factory';
 import { ChatToolRequestService } from '../common/chat-tool-request-service';
 import { FrontendChatToolRequestService } from './chat-tool-request-service';
+import { ChatPersistenceService } from './chat-persistence-service';
 import { ChangeSetFileService } from './change-set-file-service';
 import { ContextVariableLabelProvider } from './context-variable-label-provider';
 import { ContextFileVariableLabelProvider } from './context-file-variable-label-provider';
@@ -82,6 +83,9 @@ export default new ContainerModule(bind => {
 
     bind(FrontendChatServiceImpl).toSelf().inSingletonScope();
     bind(ChatService).toService(FrontendChatServiceImpl);
+
+    // Chat persistence
+    bind(ChatPersistenceService).toSelf().inSingletonScope();
 
     bind(PreferenceContribution).toConstantValue({ schema: aiChatPreferences });
 

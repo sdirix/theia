@@ -15,12 +15,14 @@
 // *****************************************************************************
 export * from './chat-agents';
 export * from './chat-agent-service';
+// Export from chat-model but explicitly re-export SerializableChatData to avoid ambiguity
+import { SerializableChatData as ModelSerializableChatData } from './chat-model';
 export * from './chat-model';
+export { ModelSerializableChatData as SerializableChatData };
 export * from './chat-model-serializer';
 export * from './chat-model-util';
 export * from './chat-request-parser';
 export * from './chat-response-content-serializer';
-export * from './chat-serialization-module';
 export * from './chat-service';
 export * from './custom-chat-agent';
 export * from './parsed-chat-request';

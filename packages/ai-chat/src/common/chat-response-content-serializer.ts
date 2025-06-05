@@ -14,17 +14,17 @@
 // SPDX-License-Identifier: EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0
 // *****************************************************************************
 
-import { URI } from '@theia/core';
-import { MarkdownStringImpl } from '@theia/core/lib/common/markdown-rendering';
-import { ChatResponseContent, TextChatResponseContent, MarkdownChatResponseContent, CodeChatResponseContent, 
-         ErrorChatResponseContent, InformationalChatResponseContent, CommandChatResponseContent, 
-         HorizontalLayoutChatResponseContent, ToolCallChatResponseContent, ThinkingChatResponseContent,
-         ProgressChatResponseContent, TextChatResponseContentImpl, MarkdownChatResponseContentImpl, 
-         CodeChatResponseContentImpl, ErrorChatResponseContentImpl, InformationalChatResponseContentImpl,
-         CommandChatResponseContentImpl, HorizontalLayoutChatResponseContentImpl, 
-         ToolCallChatResponseContentImpl, ThinkingChatResponseContentImpl, ProgressChatResponseContentImpl,
-         Location } from './chat-model';
-import { Command } from '@theia/core';
+import { Command, URI } from '@theia/core';
+import {
+    ChatResponseContent, TextChatResponseContent, MarkdownChatResponseContent, CodeChatResponseContent,
+    ErrorChatResponseContent, InformationalChatResponseContent, CommandChatResponseContent,
+    HorizontalLayoutChatResponseContent, ToolCallChatResponseContent, ThinkingChatResponseContent,
+    ProgressChatResponseContent, TextChatResponseContentImpl, MarkdownChatResponseContentImpl,
+    CodeChatResponseContentImpl, ErrorChatResponseContentImpl, InformationalChatResponseContentImpl,
+    CommandChatResponseContentImpl, HorizontalLayoutChatResponseContentImpl,
+    ToolCallChatResponseContentImpl, ThinkingChatResponseContentImpl, ProgressChatResponseContentImpl,
+    Location
+} from './chat-model';
 
 export const CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN = Symbol('ChatResponseContentSerializer');
 
@@ -36,17 +36,17 @@ export interface ChatResponseContentSerializer {
      * Check if this serializer can handle the given content
      */
     canHandle(content: ChatResponseContent): boolean;
-    
+
     /**
      * Check if this serializer can handle content of the given kind
      */
     canHandleKind(kind: string): boolean;
-    
+
     /**
      * Serialize the content to a JSON-serializable object
      */
     serialize(content: ChatResponseContent): unknown;
-    
+
     /**
      * Deserialize the data back to ChatResponseContent
      */
@@ -61,11 +61,11 @@ export class TextChatResponseContentSerializer implements ChatResponseContentSer
     canHandle(content: ChatResponseContent): boolean {
         return TextChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'text';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!TextChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-text content');
@@ -74,12 +74,18 @@ export class TextChatResponseContentSerializer implements ChatResponseContentSer
             content: content.content
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('content' in data) || typeof data.content !== 'string') {
+        if (!data || typeof data !== 'object' || !('content' in data)) {
             throw new Error('Invalid text content data');
         }
-        return new TextChatResponseContentImpl(data.content);
+
+        const typedData = data as { content: unknown };
+        if (typeof typedData.content !== 'string') {
+            throw new Error('Invalid text content data: content must be a string');
+        }
+
+        return new TextChatResponseContentImpl(typedData.content);
     }
 }
 
@@ -87,26 +93,32 @@ export class MarkdownChatResponseContentSerializer implements ChatResponseConten
     canHandle(content: ChatResponseContent): boolean {
         return MarkdownChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'markdownContent';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!MarkdownChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-markdown content');
         }
         return {
             value: content.content.value,
-            supportMarkdown: content.content.supportMarkdown,
+            supportMarkdown: content.content.isTrusted !== undefined,
             isTrusted: content.content.isTrusted
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('value' in data) || typeof data.value !== 'string') {
+        if (!data || typeof data !== 'object' || !('value' in data)) {
             throw new Error('Invalid markdown content data');
         }
+
+        const partialData = data as { value: unknown };
+        if (typeof partialData.value !== 'string') {
+            throw new Error('Invalid markdown content data: value must be a string');
+        }
+
         const typedData = data as { value: string; supportMarkdown?: boolean; isTrusted?: boolean };
         return new MarkdownChatResponseContentImpl(typedData.value);
     }
@@ -116,11 +128,11 @@ export class CodeChatResponseContentSerializer implements ChatResponseContentSer
     canHandle(content: ChatResponseContent): boolean {
         return CodeChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'code';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!CodeChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-code content');
@@ -134,22 +146,28 @@ export class CodeChatResponseContentSerializer implements ChatResponseContentSer
             } : undefined
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('code' in data) || typeof data.code !== 'string') {
+        if (!data || typeof data !== 'object' || !('code' in data)) {
             throw new Error('Invalid code content data');
         }
-        const typedData = data as { 
-            code: string; 
-            language?: string; 
-            location?: { uri: string; position: { line: number; character: number } } 
+
+        const partialData = data as { code: unknown };
+        if (typeof partialData.code !== 'string') {
+            throw new Error('Invalid code content data: code must be a string');
+        }
+
+        const typedData = data as {
+            code: string;
+            language?: string;
+            location?: { uri: string; position: { line: number; character: number } }
         };
-        
+
         const location: Location | undefined = typedData.location ? {
-            uri: URI.parse(typedData.location.uri),
+            uri: new URI(typedData.location.uri),
             position: typedData.location.position
         } : undefined;
-        
+
         return new CodeChatResponseContentImpl(typedData.code, typedData.language, location);
     }
 }
@@ -158,11 +176,11 @@ export class ErrorChatResponseContentSerializer implements ChatResponseContentSe
     canHandle(content: ChatResponseContent): boolean {
         return ErrorChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'error';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!ErrorChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-error content');
@@ -173,11 +191,17 @@ export class ErrorChatResponseContentSerializer implements ChatResponseContentSe
             stack: content.error.stack
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('message' in data) || typeof data.message !== 'string') {
+        if (!data || typeof data !== 'object' || !('message' in data)) {
             throw new Error('Invalid error content data');
         }
+
+        const partialData = data as { message: unknown };
+        if (typeof partialData.message !== 'string') {
+            throw new Error('Invalid error content data: message must be a string');
+        }
+
         const typedData = data as { message: string; name?: string; stack?: string };
         const error = new Error(typedData.message);
         if (typedData.name) {
@@ -194,26 +218,32 @@ export class InformationalChatResponseContentSerializer implements ChatResponseC
     canHandle(content: ChatResponseContent): boolean {
         return InformationalChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'informational';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!InformationalChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-informational content');
         }
         return {
             value: content.content.value,
-            supportMarkdown: content.content.supportMarkdown,
+            supportMarkdown: content.content.isTrusted !== undefined,
             isTrusted: content.content.isTrusted
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('value' in data) || typeof data.value !== 'string') {
+        if (!data || typeof data !== 'object' || !('value' in data)) {
             throw new Error('Invalid informational content data');
         }
+
+        const partialData = data as { value: unknown };
+        if (typeof partialData.value !== 'string') {
+            throw new Error('Invalid informational content data: value must be a string');
+        }
+
         const typedData = data as { value: string; supportMarkdown?: boolean; isTrusted?: boolean };
         return new InformationalChatResponseContentImpl(typedData.value);
     }
@@ -223,11 +253,11 @@ export class CommandChatResponseContentSerializer implements ChatResponseContent
     canHandle(content: ChatResponseContent): boolean {
         return CommandChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'command';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!CommandChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-command content');
@@ -241,17 +271,17 @@ export class CommandChatResponseContentSerializer implements ChatResponseContent
             arguments: content.arguments
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null) {
+        if (!data || typeof data !== 'object') {
             throw new Error('Invalid command content data');
         }
-        const typedData = data as { 
-            command?: Command; 
-            customCallback?: { label: string }; 
-            arguments?: unknown[] 
+        const typedData = data as {
+            command?: Command;
+            customCallback?: { label: string };
+            arguments?: unknown[]
         };
-        
+
         // Note: CustomCallback cannot be fully restored since we can't serialize functions
         // The customCallback will be undefined after deserialization
         return new CommandChatResponseContentImpl(typedData.command, undefined, typedData.arguments);
@@ -262,11 +292,11 @@ export class HorizontalLayoutChatResponseContentSerializer implements ChatRespon
     canHandle(content: ChatResponseContent): boolean {
         return HorizontalLayoutChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'horizontal';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!HorizontalLayoutChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-horizontal layout content');
@@ -274,22 +304,22 @@ export class HorizontalLayoutChatResponseContentSerializer implements ChatRespon
         // Note: This is a simplified serialization that doesn't handle nested content
         // For a full implementation, we would need to recursively serialize child content
         return {
-            contentCount: content.content.length,
-            contentKinds: content.content.map(child => child.kind),
-            asString: content.asString()
+            contentCount: content.content?.length || 0,
+            contentKinds: content.content?.map(child => child.kind) || [],
+            asString: content.asString?.() || ''
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null) {
+        if (!data || typeof data !== 'object') {
             throw new Error('Invalid horizontal layout content data');
         }
         const typedData = data as { asString?: string };
-        
+
         // Create a simple text representation since we can't fully restore nested content
         const fallbackText = typedData.asString || '[Horizontal Layout Content]';
-        const fallbackContent = new TextChatResponseContentImpl(fallbackText);
-        
+        const fallbackContent = new TextChatResponseContentImpl(fallbackText || '');
+
         return new HorizontalLayoutChatResponseContentImpl([fallbackContent]);
     }
 }
@@ -298,11 +328,11 @@ export class ToolCallChatResponseContentSerializer implements ChatResponseConten
     canHandle(content: ChatResponseContent): boolean {
         return ToolCallChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'toolCall';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!ToolCallChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-tool call content');
@@ -316,19 +346,19 @@ export class ToolCallChatResponseContentSerializer implements ChatResponseConten
             // Note: We cannot serialize the confirmation promise
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null) {
+        if (!data || typeof data !== 'object') {
             throw new Error('Invalid tool call content data');
         }
-        const typedData = data as { 
-            id?: string; 
-            name?: string; 
-            arguments?: string; 
-            finished?: boolean; 
-            result?: string 
+        const typedData = data as {
+            id?: string;
+            name?: string;
+            arguments?: string;
+            finished?: boolean;
+            result?: string
         };
-        
+
         return new ToolCallChatResponseContentImpl(
             typedData.id,
             typedData.name,
@@ -343,11 +373,11 @@ export class ThinkingChatResponseContentSerializer implements ChatResponseConten
     canHandle(content: ChatResponseContent): boolean {
         return ThinkingChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'thinking';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!ThinkingChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-thinking content');
@@ -357,12 +387,17 @@ export class ThinkingChatResponseContentSerializer implements ChatResponseConten
             signature: content.signature
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('content' in data) || !('signature' in data) ||
-            typeof data.content !== 'string' || typeof data.signature !== 'string') {
+        if (!data || typeof data !== 'object' || !('content' in data) || !('signature' in data)) {
             throw new Error('Invalid thinking content data');
         }
+
+        const partialData = data as { content: unknown; signature: unknown };
+        if (typeof partialData.content !== 'string' || typeof partialData.signature !== 'string') {
+            throw new Error('Invalid thinking content data: content and signature must be strings');
+        }
+
         const typedData = data as { content: string; signature: string };
         return new ThinkingChatResponseContentImpl(typedData.content, typedData.signature);
     }
@@ -372,11 +407,11 @@ export class ProgressChatResponseContentSerializer implements ChatResponseConten
     canHandle(content: ChatResponseContent): boolean {
         return ProgressChatResponseContent.is(content);
     }
-    
+
     canHandleKind(kind: string): boolean {
         return kind === 'progress';
     }
-    
+
     serialize(content: ChatResponseContent): unknown {
         if (!ProgressChatResponseContent.is(content)) {
             throw new Error('Cannot serialize non-progress content');
@@ -385,11 +420,17 @@ export class ProgressChatResponseContentSerializer implements ChatResponseConten
             message: content.message
         };
     }
-    
+
     deserialize(data: unknown): ChatResponseContent {
-        if (typeof data !== 'object' || data === null || !('message' in data) || typeof data.message !== 'string') {
+        if (!data || typeof data !== 'object' || !('message' in data)) {
             throw new Error('Invalid progress content data');
         }
+
+        const partialData = data as { message: unknown };
+        if (typeof partialData.message !== 'string') {
+            throw new Error('Invalid progress content data: message must be a string');
+        }
+
         const typedData = data as { message: string };
         return new ProgressChatResponseContentImpl(typedData.message);
     }

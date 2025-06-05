@@ -21,6 +21,9 @@
   "theiaExtensions": [
     {
       "frontend": "lib/browser/ai-chat-frontend-module"
+    },
+    {
+      "frontend": "lib/common/chat-serialization-module"
     }
   ],
   "keywords": [

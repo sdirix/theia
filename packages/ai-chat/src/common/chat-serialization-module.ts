@@ -15,16 +15,15 @@
 // *****************************************************************************
 
 import { ContainerModule } from '@theia/core/shared/inversify';
-import { 
-    ChatModelSerializer, 
-    ChatRequestModelSerializer, 
+import {
+    ChatModelSerializer,
+    ChatRequestModelSerializer,
     ChatResponseModelSerializer,
     DefaultChatModelSerializer,
     DefaultChatRequestModelSerializer,
     DefaultChatResponseModelSerializer
 } from './chat-model-serializer';
-import { 
-    ChatResponseContentSerializer,
+import {
     CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN,
     TextChatResponseContentSerializer,
     MarkdownChatResponseContentSerializer,
@@ -44,25 +43,15 @@ export default new ContainerModule(bind => {
     bind(ChatRequestModelSerializer).to(DefaultChatRequestModelSerializer).inSingletonScope();
     bind(ChatResponseModelSerializer).to(DefaultChatResponseModelSerializer).inSingletonScope();
 
-    // Bind built-in response content serializers
-    bind(ChatResponseContentSerializer).to(TextChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(MarkdownChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(CodeChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(ErrorChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(InformationalChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(CommandChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(HorizontalLayoutChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(ToolCallChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(ThinkingChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
-    bind(ChatResponseContentSerializer).to(ProgressChatResponseContentSerializer).inSingletonScope()
-        .whenTargetNamed(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN);
+    // Bind built-in response content serializers as contributions
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(TextChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(MarkdownChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(CodeChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(ErrorChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(InformationalChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(CommandChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(HorizontalLayoutChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(ToolCallChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(ThinkingChatResponseContentSerializer).inSingletonScope();
+    bind(CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN).to(ProgressChatResponseContentSerializer).inSingletonScope();
 });

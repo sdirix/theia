@@ -16,7 +16,7 @@
 
 import { expect } from 'chai';
 import { URI } from '@theia/core';
-import { 
+import {
     TextChatResponseContentSerializer,
     MarkdownChatResponseContentSerializer,
     CodeChatResponseContentSerializer,
@@ -28,7 +28,7 @@ import {
     ThinkingChatResponseContentSerializer,
     ProgressChatResponseContentSerializer
 } from './chat-response-content-serializer';
-import { 
+import {
     TextChatResponseContentImpl,
     MarkdownChatResponseContentImpl,
     CodeChatResponseContentImpl,
@@ -70,7 +70,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize text content', () => {
             const content = new TextChatResponseContentImpl('Hello world');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 content: 'Hello world'
             });
@@ -79,7 +79,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should deserialize text content', () => {
             const data = { content: 'Hello world' };
             const content = serializer.deserialize(data) as TextChatResponseContent;
-            
+
             expect(TextChatResponseContent.is(content)).to.be.true;
             expect(content.content).to.equal('Hello world');
             expect(content.asString()).to.equal('Hello world');
@@ -92,7 +92,7 @@ describe('ChatResponseContentSerializers', () => {
 
         it('should throw error for invalid data format', () => {
             expect(() => serializer.deserialize({ notContent: 'invalid' })).to.throw('Invalid text content data');
-            expect(() => serializer.deserialize(null)).to.throw('Invalid text content data');
+            expect(() => serializer.deserialize(undefined)).to.throw('Invalid text content data');
             expect(() => serializer.deserialize('string')).to.throw('Invalid text content data');
         });
     });
@@ -113,7 +113,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize markdown content', () => {
             const content = new MarkdownChatResponseContentImpl('**bold**');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.include({
                 value: '**bold**'
             });
@@ -122,7 +122,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should deserialize markdown content', () => {
             const data = { value: '**bold**', supportMarkdown: true };
             const content = serializer.deserialize(data) as MarkdownChatResponseContent;
-            
+
             expect(MarkdownChatResponseContent.is(content)).to.be.true;
             expect(content.content.value).to.equal('**bold**');
         });
@@ -143,12 +143,12 @@ describe('ChatResponseContentSerializers', () => {
 
         it('should serialize code content with location', () => {
             const location = {
-                uri: URI.parse('file:///test.js'),
+                uri: new URI('file:///test.js'),
                 position: { line: 10, character: 5 }
             };
             const content = new CodeChatResponseContentImpl('console.log("hello")', 'javascript', location);
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 code: 'console.log("hello")',
                 language: 'javascript',
@@ -162,7 +162,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize code content without location', () => {
             const content = new CodeChatResponseContentImpl('console.log("hello")', 'javascript');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 code: 'console.log("hello")',
                 language: 'javascript',
@@ -180,7 +180,7 @@ describe('ChatResponseContentSerializers', () => {
                 }
             };
             const content = serializer.deserialize(data) as CodeChatResponseContent;
-            
+
             expect(CodeChatResponseContent.is(content)).to.be.true;
             expect(content.code).to.equal('console.log("hello")');
             expect(content.language).to.equal('javascript');
@@ -209,7 +209,7 @@ describe('ChatResponseContentSerializers', () => {
             error.stack = 'stack trace';
             const content = new ErrorChatResponseContentImpl(error);
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 message: 'Test error',
                 name: 'CustomError',
@@ -224,7 +224,7 @@ describe('ChatResponseContentSerializers', () => {
                 stack: 'stack trace'
             };
             const content = serializer.deserialize(data) as ErrorChatResponseContent;
-            
+
             expect(ErrorChatResponseContent.is(content)).to.be.true;
             expect(content.error.message).to.equal('Test error');
             expect(content.error.name).to.equal('CustomError');
@@ -248,7 +248,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize tool call content', () => {
             const content = new ToolCallChatResponseContentImpl('tool-1', 'searchWeb', '{"query": "test"}', true, 'search result');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 id: 'tool-1',
                 name: 'searchWeb',
@@ -267,7 +267,7 @@ describe('ChatResponseContentSerializers', () => {
                 result: 'search result'
             };
             const content = serializer.deserialize(data) as ToolCallChatResponseContent;
-            
+
             expect(ToolCallChatResponseContent.is(content)).to.be.true;
             expect(content.id).to.equal('tool-1');
             expect(content.name).to.equal('searchWeb');
@@ -293,7 +293,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize thinking content', () => {
             const content = new ThinkingChatResponseContentImpl('thinking process', 'signature');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 content: 'thinking process',
                 signature: 'signature'
@@ -306,7 +306,7 @@ describe('ChatResponseContentSerializers', () => {
                 signature: 'signature'
             };
             const content = serializer.deserialize(data) as ThinkingChatResponseContent;
-            
+
             expect(ThinkingChatResponseContent.is(content)).to.be.true;
             expect(content.content).to.equal('thinking process');
             expect(content.signature).to.equal('signature');
@@ -316,7 +316,7 @@ describe('ChatResponseContentSerializers', () => {
     describe('ProgressChatResponseContentSerializer', () => {
         let serializer: ProgressChatResponseContentSerializer;
 
-        beforeEach () => {
+        beforeEach(function (): void {
             serializer = new ProgressChatResponseContentSerializer();
         });
 
@@ -329,7 +329,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize progress content', () => {
             const content = new ProgressChatResponseContentImpl('Processing...');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 message: 'Processing...'
             });
@@ -338,7 +338,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should deserialize progress content', () => {
             const data = { message: 'Processing...' };
             const content = serializer.deserialize(data) as ProgressChatResponseContent;
-            
+
             expect(ProgressChatResponseContent.is(content)).to.be.true;
             expect(content.message).to.equal('Processing...');
         });
@@ -362,7 +362,7 @@ describe('ChatResponseContentSerializers', () => {
             const command = { id: 'test.command', label: 'Test Command' };
             const content = new CommandChatResponseContentImpl(command, undefined, ['arg1', 'arg2']);
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 command: { id: 'test.command', label: 'Test Command' },
                 customCallback: undefined,
@@ -371,10 +371,13 @@ describe('ChatResponseContentSerializers', () => {
         });
 
         it('should serialize command content with custom callback', () => {
-            const customCallback = { label: 'Custom Action' };
-            const content = new CommandChatResponseContentImpl(undefined, customCallback as any);
+            const customCallback = {
+                label: 'Custom Action',
+                callback: async () => { /* empty callback */ }
+            };
+            const content = new CommandChatResponseContentImpl(undefined, customCallback);
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 command: undefined,
                 customCallback: { label: 'Custom Action' },
@@ -388,7 +391,7 @@ describe('ChatResponseContentSerializers', () => {
                 arguments: ['arg1', 'arg2']
             };
             const content = serializer.deserialize(data) as CommandChatResponseContent;
-            
+
             expect(CommandChatResponseContent.is(content)).to.be.true;
             expect(content.command).to.deep.equal({ id: 'test.command', label: 'Test Command' });
             expect(content.arguments).to.deep.equal(['arg1', 'arg2']);
@@ -417,7 +420,7 @@ describe('ChatResponseContentSerializers', () => {
             ];
             const content = new HorizontalLayoutChatResponseContentImpl(childContent);
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.equal({
                 contentCount: 2,
                 contentKinds: ['text', 'text'],
@@ -432,19 +435,19 @@ describe('ChatResponseContentSerializers', () => {
                 asString: 'text1 text2'
             };
             const content = serializer.deserialize(data) as HorizontalLayoutChatResponseContent;
-            
+
             expect(HorizontalLayoutChatResponseContent.is(content)).to.be.true;
             expect(content.content).to.have.length(1);
             expect(content.content[0].kind).to.equal('text');
-            expect((content.content[0] as any).content).to.equal('text1 text2');
+            expect((content.content[0] as TextChatResponseContent).content).to.equal('text1 text2');
         });
 
         it('should handle missing asString in deserialization', () => {
             const data = { contentCount: 1 };
             const content = serializer.deserialize(data) as HorizontalLayoutChatResponseContent;
-            
+
             expect(content.content).to.have.length(1);
-            expect((content.content[0] as any).content).to.equal('[Horizontal Layout Content]');
+            expect((content.content[0] as TextChatResponseContent).content).to.equal('[Horizontal Layout Content]');
         });
     });
 
@@ -464,7 +467,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should serialize informational content', () => {
             const content = new InformationalChatResponseContentImpl('Info message');
             const serialized = serializer.serialize(content);
-            
+
             expect(serialized).to.deep.include({
                 value: 'Info message'
             });
@@ -473,7 +476,7 @@ describe('ChatResponseContentSerializers', () => {
         it('should deserialize informational content', () => {
             const data = { value: 'Info message' };
             const content = serializer.deserialize(data) as InformationalChatResponseContent;
-            
+
             expect(InformationalChatResponseContent.is(content)).to.be.true;
             expect(content.content.value).to.equal('Info message');
         });

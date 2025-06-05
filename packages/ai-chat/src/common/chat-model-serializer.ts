@@ -15,10 +15,10 @@
 // *****************************************************************************
 
 import { inject, injectable, named } from '@theia/core/shared/inversify';
-import { ContributionProvider, Disposable, DisposableCollection, URI } from '@theia/core';
+import { ContributionProvider } from '@theia/core';
 import { ChatAgentLocation } from './chat-agents';
 import { ChatResponseContent, MutableChatModel, MutableChatRequestModel, MutableChatResponseModel } from './chat-model';
-import { ParsedChatRequest } from './parsed-chat-request';
+import { ParsedChatRequest, ParsedChatRequestPart } from './parsed-chat-request';
 import { ChatResponseContentSerializer, CHAT_RESPONSE_CONTENT_SERIALIZER_CONTRIBUTION_TOKEN } from './chat-response-content-serializer';
 import { AIVariableResolutionRequest, ResolvedAIContextVariable } from '@theia/ai-core';
 import { MarkdownString } from '@theia/core/lib/common/markdown-rendering';
@@ -147,24 +147,24 @@ export class DefaultChatModelSerializer implements ChatModelSerializer {
 
     serialize(chatModel: MutableChatModel): SerializableChatData {
         const requests = chatModel.getRequests().map(request => this.requestSerializer.serialize(request));
-        
+
         const suggestions = chatModel.suggestions.map(suggestion => {
             if (typeof suggestion === 'string') {
                 return suggestion;
             } else if (MarkdownString.is(suggestion)) {
                 return {
                     value: suggestion.value,
-                    supportMarkdown: suggestion.supportMarkdown ?? false,
+                    supportMarkdown: suggestion.isTrusted !== undefined,
                     isTrusted: suggestion.isTrusted
                 };
             } else {
                 // For ChatSuggestionCallback, we can't serialize the callback function
                 // So we just store the content part
-                return typeof suggestion.content === 'string' 
-                    ? suggestion.content 
+                return typeof suggestion.content === 'string'
+                    ? suggestion.content
                     : {
                         value: suggestion.content.value,
-                        supportMarkdown: suggestion.content.supportMarkdown ?? false,
+                        supportMarkdown: suggestion.content.isTrusted !== undefined,
                         isTrusted: suggestion.content.isTrusted
                     };
             }
@@ -178,7 +178,7 @@ export class DefaultChatModelSerializer implements ChatModelSerializer {
             lastMessageDate: Date.now(), // TODO: Add lastMessageDate tracking to MutableChatModel
             customTitle: undefined, // TODO: Add title support to MutableChatModel
             requests,
-            suggestions,
+            suggestions: suggestions as readonly (string | { value: string; supportMarkdown: boolean; isTrusted?: boolean })[],
             settings: chatModel.settings
         };
     }
@@ -186,17 +186,17 @@ export class DefaultChatModelSerializer implements ChatModelSerializer {
     deserialize(data: SerializableChatData): MutableChatModel {
         // Validate version and handle migration if needed
         const normalizedData = this.normalizeSerializableData(data);
-        
+
         // Create the model with the serialized data
         const model = new MutableChatModel(normalizedData.location, normalizedData);
-        
+
         // Deserialize requests
         if (normalizedData.requests && normalizedData.requests.length > 0) {
             for (const requestData of normalizedData.requests) {
                 this.requestSerializer.deserialize(requestData, model);
             }
         }
-        
+
         // Set suggestions if available
         if (normalizedData.suggestions) {
             const deserializedSuggestions = normalizedData.suggestions.map(suggestion => {
@@ -212,12 +212,12 @@ export class DefaultChatModelSerializer implements ChatModelSerializer {
             });
             model.setSuggestions(deserializedSuggestions);
         }
-        
+
         // Set settings if available
         if (normalizedData.settings) {
             model.setSettings(normalizedData.settings);
         }
-        
+
         return model;
     }
 
@@ -255,7 +255,7 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
         const context = this.serializeContext(requestModel.context);
         const request = this.serializeRequest(requestModel.request);
         const message = this.serializeParsedChatRequest(requestModel.message);
-        
+
         const responseData = requestModel.response ? this.responseSerializer.serialize(requestModel.response) : undefined;
 
         return {
@@ -272,7 +272,7 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
     deserialize(data: SerializableChatRequestData, session: MutableChatModel): MutableChatRequestModel {
         const parsedRequest = this.deserializeParsedChatRequest(data.message);
         const context = this.deserializeContext(data.context);
-        
+
         const requestModel = new MutableChatRequestModel(
             session,
             parsedRequest,
@@ -282,11 +282,13 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
         );
 
         // Override the generated ID with the serialized one
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (requestModel as any)._id = data.requestId;
 
         // Deserialize response if available
         if (data.response) {
             const responseModel = this.responseSerializer.deserialize(data.response, data.requestId);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (requestModel as any)._response = responseModel;
         }
 
@@ -305,7 +307,8 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
         };
     }
 
-    protected serializeRequest(request: { text: string; displayText?: string; referencedRequestId?: string; variables?: readonly AIVariableResolutionRequest[] }): SerializableChatRequest {
+    protected serializeRequest(request: { text: string; displayText?: string; referencedRequestId?: string; variables?: readonly AIVariableResolutionRequest[] }):
+        SerializableChatRequest {
         return {
             text: request.text,
             displayText: request.displayText,
@@ -317,9 +320,11 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
     protected serializeParsedChatRequest(message: ParsedChatRequest): SerializableChatRequestData['message'] {
         return {
             request: this.serializeRequest(message.request),
-            agentName: message.agentName,
-            command: message.command,
-            text: message.text,
+            // These properties don't exist on ParsedChatRequest, but are required by the message interface
+            // We'll use empty values for now
+            agentName: '',
+            command: '',
+            text: message.request.text,
             parts: message.parts // TODO: Proper serialization of parts if needed
         };
     }
@@ -334,10 +339,9 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
 
         return {
             request,
-            agentName: data.agentName,
-            command: data.command,
-            text: data.text,
-            parts: data.parts || [] // TODO: Proper deserialization of parts if needed
+            parts: (data.parts || []) as ParsedChatRequestPart[],
+            toolRequests: new Map(),
+            variables: []
         };
     }
 
@@ -350,14 +354,9 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
             },
             arg: variable.arg,
             value: variable.value,
-            languageModelMessages: variable.languageModelMessages,
-            references: variable.references?.map(ref => ({
-                anchor: {
-                    uri: ref.anchor.uri.toString(),
-                    position: ref.anchor.position
-                },
-                range: ref.range
-            }))
+            // These properties don't exist on ResolvedAIContextVariable
+            languageModelMessages: [],
+            references: []
         };
     }
 
@@ -366,18 +365,11 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
             variable: {
                 id: data.variable.id,
                 name: data.variable.name,
-                description: data.variable.description
+                description: data.variable.description || ''
             },
             arg: data.arg,
-            value: data.value,
-            languageModelMessages: data.languageModelMessages,
-            references: data.references?.map(ref => ({
-                anchor: {
-                    uri: URI.parse(ref.anchor.uri),
-                    position: ref.anchor.position
-                },
-                range: ref.range
-            }))
+            value: data.value || '',
+            contextValue: ''
         };
     }
 
@@ -398,7 +390,7 @@ export class DefaultChatRequestModelSerializer implements ChatRequestModelSerial
             variable: {
                 id: data.variable.id,
                 name: data.variable.name,
-                description: data.variable.description
+                description: data.variable.description || ''
             },
             arg: data.arg
         };
@@ -414,7 +406,7 @@ export class DefaultChatResponseModelSerializer implements ChatResponseModelSeri
 
     serialize(responseModel: MutableChatResponseModel): SerializableChatRequestData['response'] {
         const serializedContent: SerializableChatResponseContent[] = [];
-        
+
         for (const content of responseModel.response.content) {
             const serializer = this.getSerializerForContent(content);
             if (serializer) {
@@ -457,8 +449,9 @@ export class DefaultChatResponseModelSerializer implements ChatResponseModelSeri
         }
 
         const responseModel = new MutableChatResponseModel(requestId, data.agentId);
-        
+
         // Override the generated ID with the serialized one
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (responseModel as any)._id = data.responseId;
 
         // Deserialize content
@@ -477,16 +470,18 @@ export class DefaultChatResponseModelSerializer implements ChatResponseModelSeri
                 console.warn(`No serializer found for content kind: ${contentData.kind}`);
                 // Create a fallback text content
                 if (contentData.data && typeof contentData.data === 'object' && 'fallback' in contentData.data) {
+                    const dataObj = contentData.data as Record<string, unknown>;
+                    const fallbackText = String(dataObj.fallback || '');
                     const fallbackContent = {
                         kind: 'text' as const,
-                        content: String(contentData.data.fallback),
-                        asString: () => String(contentData.data.fallback),
-                        asDisplayString: () => String(contentData.data.fallback),
+                        content: fallbackText,
+                        asString: () => fallbackText,
+                        asDisplayString: () => fallbackText,
                         merge: () => false,
                         toLanguageModelMessage: () => ({
                             actor: 'ai' as const,
                             type: 'text' as const,
-                            text: String(contentData.data.fallback)
+                            text: fallbackText
                         })
                     };
                     deserializedContent.push(fallbackContent);
