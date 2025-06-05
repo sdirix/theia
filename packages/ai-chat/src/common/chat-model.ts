@@ -29,6 +29,19 @@ import { ChangeSet, ChangeSetImpl, ChangeSetElement, ChatUpdateChangeSetEvent } 
 import debounce = require('@theia/core/shared/lodash.debounce');
 export { ChangeSet, ChangeSetImpl, ChangeSetElement };
 
+// Forward declaration for serializable data interface
+export interface SerializableChatData {
+    readonly version: number;
+    readonly sessionId: string;
+    readonly location: ChatAgentLocation;
+    readonly creationDate: number;
+    readonly lastMessageDate?: number;
+    readonly customTitle?: string;
+    readonly requests: unknown[];
+    readonly suggestions?: readonly (string | { value: string; supportMarkdown: boolean; isTrusted?: boolean })[];
+    readonly settings?: { [key: string]: unknown };
+}
+
 /**********************
  * INTERFACES AND TYPE GUARDS
  **********************/
@@ -660,14 +673,29 @@ export class MutableChatModel implements ChatModel, Disposable {
     protected readonly _contextManager = new ChatContextManagerImpl();
     protected readonly _changeSet: ChatTreeChangeSet;
     protected _settings: { [key: string]: unknown };
+    protected _creationDate: number;
+    protected _lastMessageDate: number;
+    protected _customTitle?: string;
 
-    constructor(public readonly location = ChatAgentLocation.Panel) {
-        // TODO accept serialized data as a parameter to restore a previously saved ChatModel
+    constructor(public readonly location = ChatAgentLocation.Panel, serializedData?: SerializableChatData) {
         this._hierarchy = new ChatRequestHierarchyImpl<MutableChatRequestModel>();
         this._changeSet = new ChatTreeChangeSet(this._hierarchy);
         this.toDispose.push(this._changeSet);
         this._changeSet.onDidChange(this._onDidChangeEmitter.fire, this._onDidChangeEmitter, this.toDispose);
-        this._id = generateUuid();
+        
+        // Initialize from serialized data if provided, otherwise use defaults
+        if (serializedData) {
+            this._id = serializedData.sessionId;
+            this._creationDate = serializedData.creationDate;
+            this._lastMessageDate = serializedData.lastMessageDate || serializedData.creationDate;
+            this._customTitle = serializedData.customTitle;
+            this._settings = serializedData.settings || {};
+        } else {
+            this._id = generateUuid();
+            this._creationDate = Date.now();
+            this._lastMessageDate = this._creationDate;
+            this._settings = {};
+        }
 
         this.toDispose.pushAll([
             this._onDidChangeEmitter,
@@ -721,6 +749,26 @@ export class MutableChatModel implements ChatModel, Disposable {
         this._settings = settings;
     }
 
+    get creationDate(): number {
+        return this._creationDate;
+    }
+
+    get lastMessageDate(): number {
+        return this._lastMessageDate;
+    }
+
+    get customTitle(): string | undefined {
+        return this._customTitle;
+    }
+
+    setCustomTitle(title: string | undefined): void {
+        this._customTitle = title;
+    }
+
+    updateLastMessageDate(): void {
+        this._lastMessageDate = Date.now();
+    }
+
     addRequest(parsedChatRequest: ParsedChatRequest, agentId?: string, context: ChatContext = { variables: [] }): MutableChatRequestModel {
         const add = this.getTargetForRequestAddition(parsedChatRequest);
         const requestModel = new MutableChatRequestModel(this, parsedChatRequest, agentId, context);
@@ -732,6 +780,9 @@ export class MutableChatModel implements ChatModel, Disposable {
 
         add(requestModel);
         this._changeSet.registerRequest(requestModel);
+        
+        // Update last message date when adding a new request
+        this.updateLastMessageDate();
 
         this._onDidChangeEmitter.fire({
             kind: 'addRequest',
@@ -1152,7 +1203,6 @@ export class MutableChatRequestModel implements ChatRequestModel, EditableChatRe
 
     constructor(session: MutableChatModel, public readonly message: ParsedChatRequest, agentId?: string,
         context: ChatContext = { variables: [] }, data: { [key: string]: unknown } = {}) {
-        // TODO accept serialized data as a parameter to restore a previously saved ChatRequestModel
         this._request = message.request;
         this._id = generateUuid();
         this._session = session;
@@ -1694,7 +1744,6 @@ class ChatResponseImpl implements ChatResponse {
     protected _responseRepresentationForDisplay: string;
 
     constructor() {
-        // TODO accept serialized data as a parameter to restore a previously saved ChatResponse
         this._content = [];
     }
 
@@ -1806,7 +1855,6 @@ export class MutableChatResponseModel implements ChatResponseModel {
     protected _cancellationToken: CancellationTokenSource;
 
     constructor(requestId: string, agentId?: string) {
-        // TODO accept serialized data as a parameter to restore a previously saved ChatResponseModel
         this._requestId = requestId;
         this._id = generateUuid();
         this._progressMessages = [];
