@@ -57,7 +57,7 @@ interface ParsedPrompt {
 export class AIAgentConfigurationWidget extends AIListDetailConfigurationWidget<Agent> {
 
     static readonly ID = 'ai-agent-configuration-container-widget';
-    static readonly LABEL = nls.localize('theia/ai/core/agentConfiguration/label', 'Agents');
+    static readonly LABEL = nls.localizeByDefault('Agents');
 
     @inject(AgentService)
     protected readonly agentService: AgentService;
@@ -304,7 +304,7 @@ export class AIAgentConfigurationWidget extends AIListDetailConfigurationWidget<
                             <tr>
                                 <th>{nls.localize('theia/ai/core/agentConfiguration/templateName', 'Template')}</th>
                                 <th>{nls.localize('theia/ai/core/agentConfiguration/variant', 'Variant')}</th>
-                                <th className="template-actions-header">{nls.localize('theia/ai/core/agentConfiguration/actions', 'Actions')}</th>
+                                <th className="template-actions-header">{nls.localizeByDefault('Actions')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -418,7 +418,12 @@ export class AIAgentConfigurationWidget extends AIListDetailConfigurationWidget<
         const existingIds = new Set(result.capabilities.map(c => c.fragmentId));
         for (const capability of capabilities) {
             if (!existingIds.has(capability.fragmentId)) {
-                result.capabilities.push(capability);
+                const fragment = this.promptService.getRawPromptFragment(capability.fragmentId);
+                result.capabilities.push({
+                    ...capability,
+                    name: fragment?.name,
+                    description: fragment?.description,
+                });
                 existingIds.add(capability.fragmentId);
             }
         }
@@ -591,8 +596,11 @@ const AgentCapabilities = ({ capabilities }: AgentCapabilitiesProps) => (
     <table className="ai-templates-table">
         <thead>
             <tr>
-                <th>{nls.localize('theia/ai/ide/agentConfiguration/capabilityId', 'Fragment ID')}</th>
-                <th>{nls.localize('theia/ai/ide/agentConfiguration/enabledByDefault', 'Enabled by Default')}</th>
+                <th>{nls.localizeByDefault('ID')}</th>
+                <th>{nls.localizeByDefault('Name')}</th>
+                <th title={nls.localize('theia/ai/ide/agentConfiguration/enabledByDefault', 'Indicates if the feature is enabled by default')}>
+                    {nls.localizeByDefault('Default')}
+                </th>
                 <th>{nls.localizeByDefault('Description')}</th>
             </tr>
         </thead>
@@ -600,13 +608,14 @@ const AgentCapabilities = ({ capabilities }: AgentCapabilitiesProps) => (
             {capabilities.map(capability => (
                 <tr key={capability.fragmentId}>
                     <td className="ai-variable-name-cell">{capability.fragmentId}</td>
+                    <td className="ai-variable-name-cell">{capability.name ?? capability.fragmentId}</td>
                     <td className="ai-variable-name-cell">
                         {capability.defaultEnabled
                             ? nls.localize('theia/ai/ide/agentConfiguration/capabilityOn', 'On')
                             : nls.localizeByDefault('Off')}
                     </td>
                     <td className="ai-variable-description-cell">
-                        {/* TODO show capability description ??  */nls.localize('theia/ai/ide/agentConfiguration/noDescription', 'No description available')}
+                        {capability.description ?? nls.localize('theia/ai/ide/agentConfiguration/noDescription', 'No description available')}
                     </td>
                 </tr>
             ))}
