@@ -43,6 +43,8 @@ import { MCPFrontendContribution } from '@theia/ai-mcp-server/lib/browser/mcp-fr
 import { SampleFrontendMCPContribution } from './mcp/sample-frontend-mcp-contribution';
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { ResolveMcpFrontendContribution } from './mcp/resolve-frontend-mcp-contribution';
+import { ExternalRequestContribution } from '@theia/core/lib/common/external-request';
+import { SampleCliFrontendContribution } from './cli/sample-cli-frontend-contribution';
 
 export default new ContainerModule((
     bind: interfaces.Bind,
@@ -75,4 +77,5 @@ export default new ContainerModule((
     bind(MCPFrontendContribution).to(SampleFrontendMCPContribution).inSingletonScope();
     bind(ResolveMcpFrontendContribution).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toService(ResolveMcpFrontendContribution);
+    bind(ExternalRequestContribution).to(SampleCliFrontendContribution).inSingletonScope();
 });

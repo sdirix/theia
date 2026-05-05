@@ -39,6 +39,9 @@
     },
     {
       "frontendPreload": "lib/browser/api-samples-preload-module"
+    },
+    {
+      "electronMain": "lib/electron-main/cli/sample-cli-electron-main-module"
     }
   ],
   "keywords": [

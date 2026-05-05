@@ -21,12 +21,13 @@ import { SampleMockOpenVsxServer } from './sample-mock-open-vsx-server';
 import { SampleAppInfo } from '../common/vsx/sample-app-info';
 import { SampleBackendAppInfo } from './sample-backend-app-info';
 import { rebindOVSXClientFactory } from '../common/vsx/sample-ovsx-client-factory';
-import { ConnectionHandler, PreferenceContribution, RpcConnectionHandler } from '@theia/core';
+import { ConnectionHandler, PreferenceContribution, RpcConnectionHandler, ExternalRequestContribution } from '@theia/core';
 import { FileWatchingPreferencesSchema } from '../common/preference-schema';
 import { MCPBackendContribution } from '@theia/ai-mcp-server/lib/node/mcp-theia-server';
 import { MCPTestContribution } from './sample-mcp-test-contribution';
 import { SampleBackendPreferencesService, sampleBackendPreferencesServicePath } from '../common/preference-protocol';
 import { SampleBackendPreferencesBackendServiceImpl } from './sample-backend-preferences-service';
+import { SampleCliBackendContribution } from './sample-cli-backend-contribution';
 
 export default new ContainerModule((bind, unbind, isBound, rebind) => {
     bind(SampleBackendPreferencesBackendServiceImpl).toSelf().inSingletonScope();
@@ -45,4 +46,5 @@ export default new ContainerModule((bind, unbind, isBound, rebind) => {
     if (process.env.SAMPLE_BACKEND_APPLICATION_SERVER) {
         bind(BackendApplicationServer).to(SampleBackendApplicationServer).inSingletonScope();
     }
+    bind(ExternalRequestContribution).to(SampleCliBackendContribution).inSingletonScope();
 });

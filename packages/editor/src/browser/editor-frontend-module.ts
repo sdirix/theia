@@ -42,6 +42,8 @@ import { UndoRedoService } from './undo-redo-service';
 import { EditorLanguageQuickPickService } from './editor-language-quick-pick-service';
 import { SplitEditorContribution } from './split-editor-contribution';
 import { TextEditorSplitContribution } from './text-editor-split-contribution';
+import { ExternalRequestContribution } from '@theia/core/lib/common/external-request';
+import { CliFileOpenContribution } from './cli-file-open-contribution';
 
 export default new ContainerModule(bind => {
     bindEditorPreferences(bind);
@@ -102,4 +104,7 @@ export default new ContainerModule(bind => {
     bind(UndoRedoService).toSelf().inSingletonScope();
 
     bind(EditorLanguageQuickPickService).toSelf().inSingletonScope();
+
+    bind(CliFileOpenContribution).toSelf().inSingletonScope();
+    bind(ExternalRequestContribution).toService(CliFileOpenContribution);
 });

@@ -24,7 +24,7 @@ import { Argv } from 'yargs';
 import { AddressInfo } from 'net';
 import { promises as fs } from 'fs';
 import { existsSync, mkdirSync } from 'fs-extra';
-import { fork, ForkOptions } from 'child_process';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { DefaultTheme, ElectronFrontendApplicationConfig, FrontendApplicationConfig } from '@theia/application-package/lib/application-props';
 import URI from '../common/uri';
 import { FileUri } from '../common/file-uri';
@@ -45,6 +45,10 @@ import { StopReason } from '../common/frontend-application-state';
 import { dynamicRequire } from '../node/dynamic-require';
 import { ThemeMode } from '../common/theme';
 import { backendGlobal } from '../node/backend-global';
+import { ExternalRequest, ExternalRequestContribution, ExternalRequestMessage } from '../common/external-request';
+import { CliParameters } from '../common/cli-parameters';
+import { CHANNEL_EXTERNAL_REQUEST } from '../electron-common/electron-api';
+import { ElectronCliParameterService } from './electron-cli-parameter-service';
 
 export { ElectronMainApplicationGlobals };
 
@@ -174,8 +178,17 @@ export class ElectronMainApplication {
     @inject(TheiaElectronWindowFactory)
     protected readonly windowFactory: TheiaElectronWindowFactory;
 
+    @inject(ElectronCliParameterService)
+    protected readonly cliParameterService: ElectronCliParameterService;
+
+    @inject(ContributionProvider) @named(ExternalRequestContribution)
+    protected readonly externalRequestContributions: ContributionProvider<ExternalRequestContribution>;
+
     @inject(Stopwatch)
     protected readonly stopwatch: Stopwatch;
+
+    protected backendProcess?: ChildProcess;
+    protected initialCliParameters?: CliParameters;
 
     protected isPortable = this.makePortable();
 
@@ -249,11 +262,9 @@ export class ElectronMainApplication {
                         () => this.startContributions());
                     startupMeasurement.info('Startup sequence completed');
 
-                    this.handleMainCommand({
-                        file: args.file,
-                        cwd: process.cwd(),
-                        secondInstance: false
-                    });
+                    const parameters = await this.cliParameterService.classify(process.argv, process.cwd());
+                    this.initialCliParameters = parameters;
+                    await this.handleCliParameters(parameters);
                 },
             ).parse();
     }
@@ -550,6 +561,9 @@ export class ElectronMainApplication {
         app.quit();
     }
 
+    /**
+     * @deprecated Use {@link handleCliParameters} instead.
+     */
     protected async handleMainCommand(options: ElectronMainCommandOptions): Promise<void> {
         let workspacePath: string | undefined;
         if (options.file) {
@@ -566,6 +580,173 @@ export class ElectronMainApplication {
                 await this.openWindowWithWorkspace(''); // restore previous workspace.
             } else if (options.file === undefined) {
                 await this.openDefaultWindow();
+            }
+        }
+    }
+
+    protected async handleCliParameters(parameters: CliParameters): Promise<void> {
+        let targetWindow: TheiaElectronWindow | undefined;
+
+        // --- 1. Handle directory parameters ---
+        if (parameters.directoryPaths.length > 0) {
+            const dirPath = parameters.directoryPaths[0];
+            const existingWindow = this.findWindowForWorkspace(dirPath);
+            if (existingWindow) {
+                targetWindow = existingWindow;
+                existingWindow.window.focus();
+            } else {
+                const browserWindow = await this.openWindowWithWorkspace(dirPath);
+                targetWindow = this.windows.get(browserWindow.webContents.id);
+            }
+        }
+
+        // --- 2. Handle file-path parameters ---
+        if (parameters.filePaths.length > 0) {
+            for (const filePath of parameters.filePaths) {
+                let fileTargetWindow = this.findWindowForFile(filePath);
+                if (!fileTargetWindow) {
+                    fileTargetWindow = targetWindow ?? this.getMostRecentWindow();
+                }
+                if (fileTargetWindow) {
+                    fileTargetWindow.window.focus();
+                    if (!targetWindow) {
+                        targetWindow = fileTargetWindow;
+                    }
+                }
+            }
+        }
+
+        // --- 3. No positional args at all (no dir, no file) ---
+        if (parameters.directoryPaths.length === 0 && parameters.filePaths.length === 0) {
+            if (!parameters.secondInstance) {
+                const browserWindow = await this.openWindowWithWorkspace('');
+                targetWindow = this.windows.get(browserWindow.webContents.id);
+            } else {
+                const browserWindow = await this.openDefaultWindow();
+                targetWindow = this.windows.get(browserWindow.webContents.id);
+            }
+        }
+
+        // --- 4. Forward as ExternalRequest to targeted window(s), backend, and local contributions ---
+        const request: ExternalRequest = {
+            rawArgs: parameters.rawArgs,
+            cwd: parameters.cwd,
+            secondInstance: parameters.secondInstance
+        };
+        this.notifyElectronMainContributions(request);
+        this.forwardExternalRequestToFrontend(request, targetWindow);
+        this.forwardExternalRequestToBackend(request);
+    }
+
+    /**
+     * Extract the current workspace path from a window's URL fragment.
+     * Returns undefined if the window has no workspace (empty fragment or DEFAULT_WINDOW_HASH).
+     */
+    protected getWindowWorkspacePath(electronWindow: TheiaElectronWindow): string | undefined {
+        try {
+            const url = new URL(electronWindow.window.webContents.getURL());
+            const fragment = decodeURI(url.hash.replace(/^#/, ''));
+            if (!fragment || fragment === DEFAULT_WINDOW_HASH) {
+                return undefined;
+            }
+            return path.normalize(fragment);
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Find the window that currently has the given workspace path open.
+     */
+    protected findWindowForWorkspace(workspacePath: string): TheiaElectronWindow | undefined {
+        const normalized = path.normalize(workspacePath);
+        for (const [, electronWindow] of this.windows) {
+            const windowWorkspace = this.getWindowWorkspacePath(electronWindow);
+            if (windowWorkspace && path.normalize(windowWorkspace) === normalized) {
+                return electronWindow;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Find the window whose current workspace is a parent of the given file path.
+     */
+    protected findWindowForFile(filePath: string): TheiaElectronWindow | undefined {
+        const normalizedFile = path.normalize(filePath);
+        for (const [, electronWindow] of this.windows) {
+            const workspacePath = this.getWindowWorkspacePath(electronWindow);
+            if (workspacePath) {
+                const relative = path.relative(workspacePath, normalizedFile);
+                if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+                    return electronWindow;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Returns the most recently focused window, or undefined if none exist.
+     */
+    protected getMostRecentWindow(): TheiaElectronWindow | undefined {
+        for (const id of this.activeWindowStack) {
+            const window = this.windows.get(id);
+            if (window) {
+                return window;
+            }
+        }
+        return undefined;
+    }
+
+    /**
+     * Send an external request to the target frontend window via IPC.
+     * If the window is not yet ready, defers sending until the 'ready' state is reached.
+     */
+    protected forwardExternalRequestToFrontend(
+        request: ExternalRequest,
+        targetWindow?: TheiaElectronWindow
+    ): void {
+        const electronWindow = targetWindow ?? this.getMostRecentWindow();
+        if (electronWindow) {
+            const wc = electronWindow.window.webContents;
+            const sendRequest = (): void => {
+                wc.send(CHANNEL_EXTERNAL_REQUEST, request);
+            };
+            const disposable = TheiaRendererAPI.onApplicationStateChanged(wc, state => {
+                if (state === 'ready') {
+                    disposable.dispose();
+                    sendRequest();
+                }
+            });
+            if (!wc.isLoading()) {
+                disposable.dispose();
+                sendRequest();
+            }
+        }
+    }
+
+    /**
+     * Send an external request to the backend Node process via Node IPC.
+     */
+    protected forwardExternalRequestToBackend(request: ExternalRequest): void {
+        if (this.backendProcess?.connected) {
+            this.backendProcess.send({
+                type: 'external-request',
+                request
+            } satisfies ExternalRequestMessage);
+        }
+    }
+
+    /**
+     * Notify {@link ExternalRequestContribution}s registered in the Electron main process.
+     */
+    protected async notifyElectronMainContributions(request: ExternalRequest): Promise<void> {
+        for (const contribution of this.externalRequestContributions.getContributions()) {
+            try {
+                await contribution.onExternalRequest(request);
+            } catch (err) {
+                console.error('Error in electron-main ExternalRequestContribution:', err);
             }
         }
     }
@@ -745,11 +926,12 @@ export class ElectronMainApplication {
             }
             return address.port;
         } else {
-            const backendProcess = fork(
+            this.backendProcess = fork(
                 this.globals.THEIA_BACKEND_MAIN_PATH,
                 this.processArgv.getProcessArgvWithoutBin(),
                 await this.getForkOptions(),
             );
+            const backendProcess = this.backendProcess;
             return new Promise((resolve, reject) => {
                 // The backend server main file is also supposed to send the resolved http(s) server port via IPC.
                 backendProcess.on('message', (address: AddressInfo) => {
@@ -828,19 +1010,8 @@ export class ElectronMainApplication {
         if (originalArgv.includes('--open-url')) {
             this.openUrl(originalArgv[originalArgv.length - 1]);
         } else {
-            createYargs(this.processArgv.getProcessArgvWithoutBin(originalArgv), cwd)
-                .help(false)
-                .command('$0 [file]', false,
-                    cmd => cmd
-                        .positional('file', { type: 'string' }),
-                    async args => {
-                        await this.handleMainCommand({
-                            file: args.file,
-                            cwd: cwd,
-                            secondInstance: true
-                        });
-                    },
-                ).parse();
+            const parameters = await this.cliParameterService.classify(originalArgv, cwd);
+            await this.handleCliParameters({ ...parameters, secondInstance: true });
         }
     }
 
@@ -914,10 +1085,15 @@ export class ElectronMainApplication {
         if (wrapper) {
             const listener = wrapper.onDidClose(async () => {
                 listener.dispose();
-                await this.handleMainCommand({
-                    secondInstance: false,
-                    cwd: process.cwd()
-                });
+                const parameters: CliParameters = {
+                    cwd: process.cwd(),
+                    directoryPaths: [],
+                    filePaths: [],
+                    genericParameters: [],
+                    rawArgs: [],
+                    secondInstance: false
+                };
+                await this.handleCliParameters(parameters);
                 this.restarting = false;
             });
             // If close failed or was cancelled on this occasion, don't keep listening for it.

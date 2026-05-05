@@ -36,6 +36,9 @@ import {
 } from '../common';
 import { BackendApplication, BackendApplicationContribution, BackendApplicationCliContribution, BackendApplicationServer, BackendApplicationPath } from './backend-application';
 import { CliManager, CliContribution } from './cli';
+import { ExternalRequestBackendService } from './external-request-backend-service';
+import { ExternalRequestCliContribution } from './external-request-cli-contribution';
+import { ExternalRequestContribution } from '../common/external-request';
 import { IPCConnectionProvider } from './messaging';
 import { ApplicationServerImpl } from './application-server';
 import { ApplicationServer, applicationPath } from '../common/application-protocol';
@@ -88,6 +91,13 @@ export const backendApplicationModule = new ContainerModule(bind => {
 
     bind(BackendApplication).toSelf().inSingletonScope();
     bindRootContributionProvider(bind, BackendApplicationContribution);
+
+    bind(ExternalRequestBackendService).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(ExternalRequestBackendService);
+    bindRootContributionProvider(bind, ExternalRequestContribution);
+
+    bind(ExternalRequestCliContribution).toSelf().inSingletonScope();
+    bind(CliContribution).toService(ExternalRequestCliContribution);
     // Bind the BackendApplicationServer as a BackendApplicationContribution
     // and fallback to an empty contribution if never bound.
     bind(BackendApplicationContribution).toDynamicValue(ctx => {

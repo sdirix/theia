@@ -178,6 +178,9 @@
     {
       "backend": "lib/node/request/backend-request-module",
       "backendElectron": "lib/electron-node/request/electron-backend-request-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/cli/electron-cli-module"
     }
   ],
   "keywords": [

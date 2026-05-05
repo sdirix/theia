@@ -23,6 +23,8 @@ import { RpcConnectionHandler } from '../common/messaging/proxy-factory';
 import { ElectronSecurityToken } from '../electron-common/electron-token';
 import { ElectronMainWindowService, electronMainWindowServicePath } from '../electron-common/electron-main-window-service';
 import { ElectronMainApplication, ElectronMainApplicationContribution, ElectronMainProcessArgv } from './electron-main-application';
+import { ElectronCliParameterService } from './electron-cli-parameter-service';
+import { ExternalRequestContribution } from '../common/external-request';
 import { ElectronMainWindowServiceImpl } from './electron-main-window-service-impl';
 import { TheiaBrowserWindowOptions, TheiaElectronWindow, TheiaElectronWindowFactory, WindowApplicationConfig } from './theia-electron-window';
 import { TheiaMainApi } from './electron-api-main';
@@ -57,6 +59,8 @@ export default new ContainerModule(bind => {
     ).inSingletonScope();
 
     bind(ElectronMainProcessArgv).toSelf().inSingletonScope();
+    bind(ElectronCliParameterService).toSelf().inSingletonScope();
+    bindRootContributionProvider(bind, ExternalRequestContribution);
 
     bind(TheiaElectronWindow).toSelf();
     bind(TheiaElectronWindowFactory).toFactory(({ container }) => (options, config) => {
