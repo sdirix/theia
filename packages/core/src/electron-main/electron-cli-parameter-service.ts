@@ -17,13 +17,12 @@
 import { inject, injectable } from 'inversify';
 import * as path from 'path';
 import { promises as fs } from 'fs';
-import { CliParameters } from '../common/cli-parameters';
-import { ExternalRequest } from '../common/external-request';
-import { ElectronMainProcessArgv } from './electron-main-application';
+import { CliExternalRequest } from '../common/external-request';
+import { ElectronMainProcessArgv } from './electron-main-process-argv';
 
 /**
  * Overridable service that converts raw command-line arguments into a
- * {@link CliParameters} object. Adopters can rebind this service to
+ * {@link CliExternalRequest} object. Adopters can rebind this service to
  * customize parameter classification.
  */
 @injectable()
@@ -33,60 +32,58 @@ export class ElectronCliParameterService {
     protected readonly processArgv: ElectronMainProcessArgv;
 
     /**
-     * Classify raw argv into typed CLI parameters.
+     * Classify raw argv into a structured CLI request.
      * Adopters can override this method to customize parameter classification.
      *
-     * Args consumed by known flags (`--chat`) are skipped during
-     * classification to avoid treating their operands as regular files/directories.
+     * Flags with string values are skipped during directory/file classification.
      *
      * @param argv The raw process.argv from the invocation (including binary)
      * @param cwd The working directory of the invocation
      */
-    async classify(argv: string[], cwd: string): Promise<CliParameters> {
-        const rawArgs = this.processArgv.getProcessArgvWithoutBin(argv);
-        const directoryPaths: string[] = [];
-        const filePaths: string[] = [];
-        const genericParameters: string[] = [];
+    async classify(argv: string[], cwd: string): Promise<CliExternalRequest> {
+        const raw = this.processArgv.getProcessArgvWithoutBin(argv);
+        const parameters = CliExternalRequest.parseParameters(raw);
 
-        for (let i = 0; i < rawArgs.length; i++) {
-            const arg = rawArgs[i];
+        let directory: string | undefined;
+        let file: string | undefined;
 
-            // Skip --chat and its operand
-            if (arg === '--chat') {
-                genericParameters.push(arg);
-                if (i + 1 < rawArgs.length) { genericParameters.push(rawArgs[++i]); }
+        for (let i = 0; i < raw.length; i++) {
+            const arg = raw[i];
+
+            // Skip flags; also skip consumed value for flags with string parameters
+            if (arg.startsWith('--')) {
+                const key = arg.slice(2);
+                if (typeof parameters[key] === 'string') { i++; }
                 continue;
             }
 
             if (arg.startsWith('-')) {
-                genericParameters.push(arg);
                 continue;
             }
 
-            // Strip file:line:col suffix before stat'ing
-            const parsed = ExternalRequest.parseFileArg(arg);
+            // Positional arg — classify via fs.stat
+            const parsed = CliExternalRequest.parseFileArg(arg);
             const resolved = path.resolve(cwd, parsed.path);
             try {
                 const stat = await fs.stat(resolved);
-                if (stat.isDirectory()) {
-                    directoryPaths.push(resolved);
-                } else if (stat.isFile()) {
-                    filePaths.push(resolved);
-                } else {
-                    genericParameters.push(arg);
+                if (stat.isDirectory() && !directory) {
+                    directory = resolved;
+                } else if (stat.isFile() && !file) {
+                    file = resolved;
                 }
             } catch {
-                genericParameters.push(arg);
+                // not a valid path, ignore
             }
         }
 
         return {
+            type: 'cli',
+            raw,
             cwd,
-            directoryPaths,
-            filePaths,
-            genericParameters,
-            rawArgs,
-            secondInstance: false // caller overrides this
+            secondInstance: false, // caller overrides this
+            directory,
+            file,
+            parameters
         };
     }
 }

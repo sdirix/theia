@@ -19,7 +19,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import { inject, injectable, named } from 'inversify';
 import { ContributionProvider } from '../common/contribution-provider';
-import { ExternalRequest, ExternalRequestContribution } from '../common/external-request';
+import { CliExternalRequest, ExternalRequestContribution } from '../common/external-request';
 import { CliContribution } from './cli';
 
 /**
@@ -38,16 +38,56 @@ export class ExternalRequestCliContribution implements CliContribution {
     }
 
     async setArguments(args: yargs.Arguments): Promise<void> {
-        const rawArgs = args._.map(String);
+        const raw = args._.map(String);
         const cwd = process.cwd();
-        const request: ExternalRequest = { rawArgs, cwd, secondInstance: false };
+        const parameters = CliExternalRequest.parseParameters(raw);
 
-        // Also classify for directory-based workspace opening (browser variant)
-        await this.classifyAndDispatch(request, rawArgs, cwd);
+        let directory: string | undefined;
+        let file: string | undefined;
+
+        for (let i = 0; i < raw.length; i++) {
+            const arg = raw[i];
+
+            // Skip flags; also skip consumed value for flags with string parameters
+            if (arg.startsWith('--')) {
+                const key = arg.slice(2);
+                if (typeof parameters[key] === 'string') { i++; }
+                continue;
+            }
+
+            if (arg.startsWith('-')) {
+                continue;
+            }
+
+            // Positional arg — classify via fs.stat
+            const parsed = CliExternalRequest.parseFileArg(arg);
+            const resolved = path.resolve(cwd, parsed.path);
+            try {
+                const stat = await fs.stat(resolved);
+                if (stat.isDirectory() && !directory) {
+                    directory = resolved;
+                } else if (stat.isFile() && !file) {
+                    file = resolved;
+                }
+            } catch {
+                // not a valid path, ignore
+            }
+        }
+
+        const request: CliExternalRequest = {
+            type: 'cli',
+            raw,
+            cwd,
+            secondInstance: false,
+            directory,
+            file,
+            parameters
+        };
+
+        await this.dispatch(request);
     }
 
-    protected async classifyAndDispatch(request: ExternalRequest, rawArgs: string[], cwd: string): Promise<void> {
-        // Classify args for any contributions that may need directory/file info
+    protected async dispatch(request: CliExternalRequest): Promise<void> {
         for (const contribution of this.contributions.getContributions()) {
             try {
                 await contribution.onExternalRequest(request);
@@ -55,28 +95,5 @@ export class ExternalRequestCliContribution implements CliContribution {
                 console.error('Error in ExternalRequestContribution:', err);
             }
         }
-    }
-
-    /**
-     * Classify a raw arg as a directory, file, or generic parameter.
-     * Exported for testing.
-     */
-    async classifyArg(arg: string, cwd: string): Promise<'directory' | 'file' | 'generic'> {
-        if (arg.startsWith('-')) {
-            return 'generic';
-        }
-        const parsed = ExternalRequest.parseFileArg(arg);
-        const resolved = path.resolve(cwd, parsed.path);
-        try {
-            const stat = await fs.stat(resolved);
-            if (stat.isDirectory()) {
-                return 'directory';
-            } else if (stat.isFile()) {
-                return 'file';
-            }
-        } catch {
-            // not a valid path
-        }
-        return 'generic';
     }
 }

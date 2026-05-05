@@ -275,7 +275,8 @@ export class OpenAiModel implements LanguageModel {
     }
 
     protected processMessages(messages: LanguageModelMessage[]): ChatCompletionMessageParam[] {
-        return this.openAiModelUtils.processMessages(messages, this.developerMessageSettings, this.model);
+        const processed = this.openAiModelUtils.processMessages(messages, this.developerMessageSettings, this.model);
+        return processed;
     }
 }
 

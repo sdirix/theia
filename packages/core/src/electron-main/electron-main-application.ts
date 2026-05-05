@@ -45,10 +45,10 @@ import { StopReason } from '../common/frontend-application-state';
 import { dynamicRequire } from '../node/dynamic-require';
 import { ThemeMode } from '../common/theme';
 import { backendGlobal } from '../node/backend-global';
-import { ExternalRequest, ExternalRequestContribution, ExternalRequestMessage } from '../common/external-request';
-import { CliParameters } from '../common/cli-parameters';
+import { ExternalRequest, CliExternalRequest, ExternalRequestContribution, ExternalRequestMessage } from '../common/external-request';
 import { CHANNEL_EXTERNAL_REQUEST } from '../electron-common/electron-api';
 import { ElectronCliParameterService } from './electron-cli-parameter-service';
+import { ElectronMainProcessArgv } from './electron-main-process-argv';
 
 export { ElectronMainApplicationGlobals };
 
@@ -109,54 +109,6 @@ export interface ElectronMainApplicationContribution {
     onStop?(application: ElectronMainApplication): void;
 }
 
-// Extracted and modified the functionality from `yargs@15.4.0-beta.0`.
-// Based on https://github.com/yargs/yargs/blob/522b019c9a50924605986a1e6e0cb716d47bcbca/lib/process-argv.ts
-@injectable()
-export class ElectronMainProcessArgv {
-
-    protected get processArgvBinIndex(): number {
-        // The binary name is the first command line argument for:
-        // - bundled Electron apps: bin argv1 argv2 ... argvn
-        if (this.isBundledElectronApp) {
-            return 0;
-        }
-        // or the second one (default) for:
-        // - standard node apps: node bin.js argv1 argv2 ... argvn
-        // - unbundled Electron apps: electron bin.js argv1 arg2 ... argvn
-        return 1;
-    }
-
-    get isBundledElectronApp(): boolean {
-        // process.defaultApp is either set by electron in an electron unbundled app, or undefined
-        // see https://github.com/electron/electron/blob/master/docs/api/process.md#processdefaultapp-readonly
-        return this.isElectronApp && !(process as ElectronMainProcessArgv.ElectronMainProcess).defaultApp;
-    }
-
-    get isElectronApp(): boolean {
-        // process.versions.electron is either set by electron, or undefined
-        // see https://github.com/electron/electron/blob/master/docs/api/process.md#processversionselectron-readonly
-        return !!(process as ElectronMainProcessArgv.ElectronMainProcess).versions.electron;
-    }
-
-    getProcessArgvWithoutBin(argv = process.argv): Array<string> {
-        return argv.slice(this.processArgvBinIndex + 1);
-    }
-
-    getProcessArgvBin(argv = process.argv): string {
-        return argv[this.processArgvBinIndex];
-    }
-
-}
-
-export namespace ElectronMainProcessArgv {
-    export interface ElectronMainProcess extends NodeJS.Process {
-        readonly defaultApp: boolean;
-        readonly versions: NodeJS.ProcessVersions & {
-            readonly electron: string;
-        };
-    }
-}
-
 @injectable()
 export class ElectronMainApplication {
     @inject(ContributionProvider)
@@ -188,7 +140,7 @@ export class ElectronMainApplication {
     protected readonly stopwatch: Stopwatch;
 
     protected backendProcess?: ChildProcess;
-    protected initialCliParameters?: CliParameters;
+    protected initialCliRequest?: CliExternalRequest;
 
     protected isPortable = this.makePortable();
 
@@ -262,9 +214,9 @@ export class ElectronMainApplication {
                         () => this.startContributions());
                     startupMeasurement.info('Startup sequence completed');
 
-                    const parameters = await this.cliParameterService.classify(process.argv, process.cwd());
-                    this.initialCliParameters = parameters;
-                    await this.handleCliParameters(parameters);
+                    const request = await this.cliParameterService.classify(process.argv, process.cwd());
+                    this.initialCliRequest = request;
+                    await this.handleCliParameters(request);
                 },
             ).parse();
     }
@@ -584,41 +536,38 @@ export class ElectronMainApplication {
         }
     }
 
-    protected async handleCliParameters(parameters: CliParameters): Promise<void> {
+    protected async handleCliParameters(request: CliExternalRequest): Promise<void> {
         let targetWindow: TheiaElectronWindow | undefined;
 
-        // --- 1. Handle directory parameters ---
-        if (parameters.directoryPaths.length > 0) {
-            const dirPath = parameters.directoryPaths[0];
-            const existingWindow = this.findWindowForWorkspace(dirPath);
+        // --- 1. Handle directory parameter ---
+        if (request.directory) {
+            const existingWindow = this.findWindowForWorkspace(request.directory);
             if (existingWindow) {
                 targetWindow = existingWindow;
                 existingWindow.window.focus();
             } else {
-                const browserWindow = await this.openWindowWithWorkspace(dirPath);
+                const browserWindow = await this.openWindowWithWorkspace(request.directory);
                 targetWindow = this.windows.get(browserWindow.webContents.id);
             }
         }
 
-        // --- 2. Handle file-path parameters ---
-        if (parameters.filePaths.length > 0) {
-            for (const filePath of parameters.filePaths) {
-                let fileTargetWindow = this.findWindowForFile(filePath);
-                if (!fileTargetWindow) {
-                    fileTargetWindow = targetWindow ?? this.getMostRecentWindow();
-                }
-                if (fileTargetWindow) {
-                    fileTargetWindow.window.focus();
-                    if (!targetWindow) {
-                        targetWindow = fileTargetWindow;
-                    }
+        // --- 2. Handle file parameter (for window routing) ---
+        if (request.file) {
+            let fileTargetWindow = this.findWindowForFile(request.file);
+            if (!fileTargetWindow) {
+                fileTargetWindow = targetWindow ?? this.getMostRecentWindow();
+            }
+            if (fileTargetWindow) {
+                fileTargetWindow.window.focus();
+                if (!targetWindow) {
+                    targetWindow = fileTargetWindow;
                 }
             }
         }
 
         // --- 3. No positional args at all (no dir, no file) ---
-        if (parameters.directoryPaths.length === 0 && parameters.filePaths.length === 0) {
-            if (!parameters.secondInstance) {
+        if (!request.directory && !request.file) {
+            if (!request.secondInstance) {
                 const browserWindow = await this.openWindowWithWorkspace('');
                 targetWindow = this.windows.get(browserWindow.webContents.id);
             } else {
@@ -627,12 +576,7 @@ export class ElectronMainApplication {
             }
         }
 
-        // --- 4. Forward as ExternalRequest to targeted window(s), backend, and local contributions ---
-        const request: ExternalRequest = {
-            rawArgs: parameters.rawArgs,
-            cwd: parameters.cwd,
-            secondInstance: parameters.secondInstance
-        };
+        // --- 4. Forward to contributions ---
         this.notifyElectronMainContributions(request);
         this.forwardExternalRequestToFrontend(request, targetWindow);
         this.forwardExternalRequestToBackend(request);
@@ -1010,8 +954,8 @@ export class ElectronMainApplication {
         if (originalArgv.includes('--open-url')) {
             this.openUrl(originalArgv[originalArgv.length - 1]);
         } else {
-            const parameters = await this.cliParameterService.classify(originalArgv, cwd);
-            await this.handleCliParameters({ ...parameters, secondInstance: true });
+            const request = await this.cliParameterService.classify(originalArgv, cwd);
+            await this.handleCliParameters({ ...request, secondInstance: true });
         }
     }
 
@@ -1085,15 +1029,14 @@ export class ElectronMainApplication {
         if (wrapper) {
             const listener = wrapper.onDidClose(async () => {
                 listener.dispose();
-                const parameters: CliParameters = {
+                const restartRequest: CliExternalRequest = {
+                    type: 'cli',
+                    raw: [],
                     cwd: process.cwd(),
-                    directoryPaths: [],
-                    filePaths: [],
-                    genericParameters: [],
-                    rawArgs: [],
-                    secondInstance: false
+                    secondInstance: false,
+                    parameters: {}
                 };
-                await this.handleCliParameters(parameters);
+                await this.handleCliParameters(restartRequest);
                 this.restarting = false;
             });
             // If close failed or was cancelled on this occasion, don't keep listening for it.

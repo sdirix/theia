@@ -18,58 +18,56 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as os from 'os';
 import { promises as fs } from 'fs';
-import { CliParameters } from '../common/cli-parameters';
-import { ExternalRequest } from '../common/external-request';
+import { CliExternalRequest } from '../common/external-request';
 
 /**
  * Standalone classify function that mirrors ElectronCliParameterService.classify()
  * for testing purposes without requiring Electron dependencies.
  */
-async function classify(argv: string[], cwd: string, binIndex: number = 1): Promise<CliParameters> {
-    const rawArgs = argv.slice(binIndex + 1);
-    const directoryPaths: string[] = [];
-    const filePaths: string[] = [];
-    const genericParameters: string[] = [];
+async function classify(argv: string[], cwd: string, binIndex: number = 1): Promise<CliExternalRequest> {
+    const raw = argv.slice(binIndex + 1);
+    const parameters = CliExternalRequest.parseParameters(raw);
 
-    for (let i = 0; i < rawArgs.length; i++) {
-        const arg = rawArgs[i];
+    let directory: string | undefined;
+    let file: string | undefined;
 
-        // Skip --chat and its operand
-        if (arg === '--chat') {
-            genericParameters.push(arg);
-            if (i + 1 < rawArgs.length) { genericParameters.push(rawArgs[++i]); }
+    for (let i = 0; i < raw.length; i++) {
+        const arg = raw[i];
+
+        // Skip flags; also skip consumed value for flags with string parameters
+        if (arg.startsWith('--')) {
+            const key = arg.slice(2);
+            if (typeof parameters[key] === 'string') { i++; }
             continue;
         }
 
         if (arg.startsWith('-')) {
-            genericParameters.push(arg);
             continue;
         }
 
-        // Strip file:line:col suffix before stat'ing
-        const parsed = ExternalRequest.parseFileArg(arg);
+        // Positional arg — classify via fs.stat
+        const parsed = CliExternalRequest.parseFileArg(arg);
         const resolved = path.resolve(cwd, parsed.path);
         try {
             const stat = await fs.stat(resolved);
-            if (stat.isDirectory()) {
-                directoryPaths.push(resolved);
-            } else if (stat.isFile()) {
-                filePaths.push(resolved);
-            } else {
-                genericParameters.push(arg);
+            if (stat.isDirectory() && !directory) {
+                directory = resolved;
+            } else if (stat.isFile() && !file) {
+                file = resolved;
             }
         } catch {
-            genericParameters.push(arg);
+            // not a valid path, ignore
         }
     }
 
     return {
+        type: 'cli',
+        raw,
         cwd,
-        directoryPaths,
-        filePaths,
-        genericParameters,
-        rawArgs,
-        secondInstance: false
+        secondInstance: false,
+        directory,
+        file,
+        parameters
     };
 }
 
@@ -92,112 +90,100 @@ describe('ElectronCliParameterService (classify logic)', () => {
     });
 
     it('should classify directory arguments', async () => {
-        const argv = [process.execPath, 'app.js', testSubDir];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testSubDir], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, [testSubDir]);
-        assert.deepStrictEqual(result.filePaths, []);
-        assert.deepStrictEqual(result.genericParameters, []);
+        assert.strictEqual(result.type, 'cli');
+        assert.strictEqual(result.directory, testSubDir);
+        assert.strictEqual(result.file, undefined);
         assert.strictEqual(result.cwd, tmpDir);
         assert.strictEqual(result.secondInstance, false);
     });
 
     it('should classify file arguments', async () => {
-        const argv = [process.execPath, 'app.js', testFile];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testFile], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, []);
-        assert.deepStrictEqual(result.filePaths, [testFile]);
-        assert.deepStrictEqual(result.genericParameters, []);
+        assert.strictEqual(result.directory, undefined);
+        assert.strictEqual(result.file, testFile);
     });
 
     it('should classify file:line arguments as files', async () => {
-        const argv = [process.execPath, 'app.js', testFile + ':42'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testFile + ':42'], tmpDir);
 
-        assert.deepStrictEqual(result.filePaths, [testFile]);
+        assert.strictEqual(result.file, testFile);
     });
 
     it('should classify file:line:col arguments as files', async () => {
-        const argv = [process.execPath, 'app.js', testFile + ':42:10'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testFile + ':42:10'], tmpDir);
 
-        assert.deepStrictEqual(result.filePaths, [testFile]);
+        assert.strictEqual(result.file, testFile);
     });
 
-    it('should classify flag arguments as generic parameters', async () => {
-        const argv = [process.execPath, 'app.js', '--verbose', '--port=3000'];
-        const result = await classify(argv, tmpDir);
+    it('should classify flag arguments as parameters', async () => {
+        const result = await classify([process.execPath, 'app.js', '--verbose', '--port', '3000'], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, []);
-        assert.deepStrictEqual(result.filePaths, []);
-        assert.deepStrictEqual(result.genericParameters, ['--verbose', '--port=3000']);
+        assert.strictEqual(result.directory, undefined);
+        assert.strictEqual(result.file, undefined);
+        assert.deepStrictEqual(result.parameters, { verbose: true, port: '3000' });
     });
 
-    it('should classify non-existent paths as generic parameters', async () => {
-        const argv = [process.execPath, 'app.js', '/nonexistent/path'];
-        const result = await classify(argv, tmpDir);
+    it('should classify non-existent paths (ignored, no dir/file set)', async () => {
+        const result = await classify([process.execPath, 'app.js', '/nonexistent/path'], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, []);
-        assert.deepStrictEqual(result.filePaths, []);
-        assert.deepStrictEqual(result.genericParameters, ['/nonexistent/path']);
+        assert.strictEqual(result.directory, undefined);
+        assert.strictEqual(result.file, undefined);
     });
 
     it('should handle mixed arguments', async () => {
-        const argv = [process.execPath, 'app.js', testSubDir, '--verbose', testFile, 'unknown'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testSubDir, testFile, '--verbose'], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, [testSubDir]);
-        assert.deepStrictEqual(result.filePaths, [testFile]);
-        assert.strictEqual(result.genericParameters.length, 2);
-        assert.ok(result.genericParameters.includes('--verbose'));
-        assert.ok(result.genericParameters.includes('unknown'));
+        assert.strictEqual(result.directory, testSubDir);
+        assert.strictEqual(result.file, testFile);
+        assert.deepStrictEqual(result.parameters, { verbose: true });
     });
 
     it('should resolve relative paths against cwd', async () => {
-        const argv = [process.execPath, 'app.js', 'test-file.ts'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', 'test-file.ts'], tmpDir);
 
-        assert.deepStrictEqual(result.filePaths, [testFile]);
+        assert.strictEqual(result.file, testFile);
     });
 
     it('should handle empty arguments', async () => {
-        const argv = [process.execPath, 'app.js'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js'], tmpDir);
 
-        assert.deepStrictEqual(result.directoryPaths, []);
-        assert.deepStrictEqual(result.filePaths, []);
-        assert.deepStrictEqual(result.genericParameters, []);
-        assert.deepStrictEqual(result.rawArgs, []);
+        assert.strictEqual(result.directory, undefined);
+        assert.strictEqual(result.file, undefined);
+        assert.deepStrictEqual(result.raw, []);
+        assert.deepStrictEqual(result.parameters, {});
     });
 
     it('should preserve raw args', async () => {
-        const argv = [process.execPath, 'app.js', testSubDir, '--flag', testFile];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', testSubDir, '--flag', testFile], tmpDir);
 
-        assert.deepStrictEqual(result.rawArgs, [testSubDir, '--flag', testFile]);
+        assert.deepStrictEqual(result.raw, [testSubDir, '--flag', testFile]);
     });
 
     it('should set secondInstance to false by default', async () => {
-        const argv = [process.execPath, 'app.js'];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js'], tmpDir);
 
         assert.strictEqual(result.secondInstance, false);
     });
 
     it('should handle bundled app argv (binIndex=0)', async () => {
-        const argv = ['app', testFile];
-        const result = await classify(argv, tmpDir, 0);
+        const result = await classify(['app', testFile], tmpDir, 0);
 
-        assert.deepStrictEqual(result.filePaths, [testFile]);
+        assert.strictEqual(result.file, testFile);
     });
 
     it('should skip --chat args during classification', async () => {
-        const argv = [process.execPath, 'app.js', '--chat', 'Review this', testFile];
-        const result = await classify(argv, tmpDir);
+        const result = await classify([process.execPath, 'app.js', '--chat', 'Review this', testFile], tmpDir);
 
-        assert.deepStrictEqual(result.filePaths, [testFile]);
-        assert.ok(result.genericParameters.includes('--chat'));
-        assert.ok(result.genericParameters.includes('Review this'));
+        assert.strictEqual(result.file, testFile);
+        assert.strictEqual(result.parameters.chat, 'Review this');
+    });
+
+    it('should populate parameters for flags with values', async () => {
+        const result = await classify([process.execPath, 'app.js', '--chat', 'hello world', '--verbose'], tmpDir);
+
+        assert.deepStrictEqual(result.parameters, { chat: 'hello world', verbose: true });
     });
 });

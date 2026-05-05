@@ -70,6 +70,8 @@ import { ChatFocusContribution } from './chat-focus-contribution';
 import { ChatCapabilitiesService, ChatCapabilitiesServiceImpl } from './chat-capabilities-service';
 import { ChatInputCapabilitiesContribution } from './chat-input-capabilities-contribution';
 import { GenericCapabilitiesContribution, GenericCapabilitiesService, GenericCapabilitiesServiceImpl } from './generic-capabilities-service';
+import { ExternalRequestContribution } from '@theia/core/lib/common/external-request';
+import { CliChatContribution } from './cli-chat-contribution';
 
 export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
     bindChatViewPreferences(bind);
@@ -212,6 +214,9 @@ export default new ContainerModule((bind, _unbind, _isBound, rebind) => {
         const widget = container.get(SubChatWidget);
         return widget;
     });
+
+    bind(CliChatContribution).toSelf().inSingletonScope();
+    bind(ExternalRequestContribution).toService(CliChatContribution);
 
 });
 

@@ -17,16 +17,35 @@
 import { MaybePromise } from './types';
 
 /**
- * A generic request from an external source (CLI, IPC, URL handler, etc.).
- * Only rawArgs is mandatory. Other fields provide context from the source.
+ * Base interface for all external requests.
+ * Subtypes use the {@link type} field as a discriminant.
  */
 export interface ExternalRequest {
-    /** The raw arguments/tokens of the invocation. */
-    readonly rawArgs: string[];
-    /** Working directory of the invocation, if known. */
-    readonly cwd?: string;
+    /** Discriminant identifying the source of the request (e.g. `'cli'`). */
+    readonly type: string;
+}
+
+/**
+ * A CLI-originated external request with classified arguments.
+ */
+export interface CliExternalRequest extends ExternalRequest {
+    readonly type: 'cli';
+    /** Raw arguments as received (without the binary prefix). */
+    readonly raw: string[];
+    /** Working directory of the invocation. */
+    readonly cwd: string;
     /** Whether this is a repeat invocation while the app is already running. */
-    readonly secondInstance?: boolean;
+    readonly secondInstance: boolean;
+    /** First classified directory argument, if any (absolute path). */
+    readonly directory?: string;
+    /** First classified file argument, if any (absolute path). */
+    readonly file?: string;
+    /**
+     * Parsed flag arguments.
+     * `--key value` becomes `{ key: "value" }`, `--flag` (at end or before another flag) becomes `{ flag: true }`.
+     * Positional arguments are not included.
+     */
+    readonly parameters: Readonly<Record<string, string | boolean>>;
 }
 
 export const ExternalRequestContribution = Symbol('ExternalRequestContribution');
@@ -58,12 +77,17 @@ export function isExternalRequestMessage(msg: unknown): msg is ExternalRequestMe
 }
 
 /**
- * Namespace with pure string-parsing utilities for extracting structured data
- * from {@link ExternalRequest} arguments. All functions are side-effect-free
- * and work in both browser and Node environments. Path resolution against
- * `cwd` is the caller's responsibility.
+ * Namespace with type guard and pure string-parsing utilities for
+ * {@link CliExternalRequest}. All functions are side-effect-free and work
+ * in both browser and Node environments. Path resolution against `cwd`
+ * is the caller's responsibility.
  */
-export namespace ExternalRequest {
+export namespace CliExternalRequest {
+
+    /** Type guard for {@link CliExternalRequest}. */
+    export function is(request: ExternalRequest): request is CliExternalRequest {
+        return request.type === 'cli';
+    }
 
     export interface FileTarget {
         /** Raw path from the argument (may be relative). */
@@ -96,46 +120,69 @@ export namespace ExternalRequest {
 
     /**
      * Get all positional (non-flag) arguments as file targets.
-     * Skips args consumed by known flag patterns (`--chat`).
+     * Skips flags whose values are identified via the request's
+     * {@link CliExternalRequest.parameters parameters}.
      */
-    export function parseFileTargets(request: ExternalRequest): FileTarget[] {
+    export function parseFileTargets(request: CliExternalRequest): FileTarget[] {
         const targets: FileTarget[] = [];
-        const args = request.rawArgs;
+        const args = request.raw;
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
-            if (arg === '--chat') { i += 1; continue; } // skip --chat and its value
-            if (arg.startsWith('-')) { continue; }       // skip other flags
+            if (arg.startsWith('--')) {
+                const key = arg.slice(2);
+                // Skip the consumed value if this flag has a string parameter
+                if (typeof request.parameters[key] === 'string') { i++; }
+                continue;
+            }
+            if (arg.startsWith('-')) { continue; }       // skip short flags
             targets.push(parseFileArg(arg));
         }
         return targets;
     }
 
-    /** Get the value following a named flag (e.g. `getFlag(req, '--chat')`). */
-    export function getFlag(request: ExternalRequest, flag: string): string | undefined {
-        const idx = request.rawArgs.indexOf(flag);
-        if (idx >= 0 && idx + 1 < request.rawArgs.length) {
-            return request.rawArgs[idx + 1];
+    /**
+     * Parse raw arguments into a parameters record.
+     * `--key=value` becomes `{ key: "value" }`.
+     * `--key value` (where value does not start with `-`) becomes `{ key: "value" }`.
+     * `--flag` (at end or before another flag) becomes `{ flag: true }`.
+     * Positional arguments and short flags are not included.
+     */
+    export function parseParameters(raw: string[]): Record<string, string | boolean> {
+        const params: Record<string, string | boolean> = {};
+        for (let i = 0; i < raw.length; i++) {
+            const arg = raw[i];
+            if (arg.startsWith('--')) {
+                const eqIndex = arg.indexOf('=', 2);
+                if (eqIndex !== -1) {
+                    const key = arg.slice(2, eqIndex);
+                    if (key.length > 0) {
+                        params[key] = arg.slice(eqIndex + 1);
+                    }
+                    continue;
+                }
+                const key = arg.slice(2);
+                if (key.length === 0) { continue; }
+                if (i + 1 < raw.length && !raw[i + 1].startsWith('-')) {
+                    params[key] = raw[i + 1];
+                    i++;
+                } else {
+                    params[key] = true;
+                }
+            }
         }
-        return undefined;
-    }
-
-    /** Check whether a flag is present. */
-    export function hasFlag(request: ExternalRequest, flag: string): boolean {
-        return request.rawArgs.includes(flag);
+        return params;
     }
 }
 
 // --- Backwards compatibility aliases ---
 
 /**
- * @deprecated Use {@link ExternalRequest} instead.
+ * @deprecated Use {@link CliExternalRequest} instead.
  */
-export type CliParameters = ExternalRequest & {
-    readonly cwd: string;
+export type CliParameters = CliExternalRequest & {
     readonly directoryPaths: string[];
     readonly filePaths: string[];
     readonly genericParameters: string[];
-    readonly secondInstance: boolean;
 };
 
 /**

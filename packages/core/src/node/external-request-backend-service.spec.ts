@@ -16,7 +16,7 @@
 
 import * as assert from 'assert';
 import { ExternalRequestBackendService } from './external-request-backend-service';
-import { ExternalRequest, ExternalRequestContribution } from '../common/external-request';
+import { ExternalRequest, CliExternalRequest, ExternalRequestContribution } from '../common/external-request';
 import { ContributionProvider } from '../common/contribution-provider';
 
 describe('ExternalRequestBackendService', () => {
@@ -41,10 +41,12 @@ describe('ExternalRequestBackendService', () => {
     });
 
     it('should dispatch external requests to contributions', async () => {
-        const request: ExternalRequest = {
-            rawArgs: ['/test/dir', '--flag', '/test/file.ts'],
+        const request: CliExternalRequest = {
+            type: 'cli',
+            raw: ['/test/dir', '--flag', '/test/file.ts'],
             cwd: '/test',
-            secondInstance: true
+            secondInstance: true,
+            parameters: { flag: true }
         };
 
         await (service as unknown as { handleExternalRequest(r: ExternalRequest): Promise<void> }).handleExternalRequest(request);
@@ -72,10 +74,12 @@ describe('ExternalRequestBackendService', () => {
         };
         (service as unknown as { contributions: ContributionProvider<ExternalRequestContribution> }).contributions = errorProvider;
 
-        const request: ExternalRequest = {
-            rawArgs: [],
+        const request: CliExternalRequest = {
+            type: 'cli',
+            raw: [],
             cwd: '/test',
-            secondInstance: false
+            secondInstance: false,
+            parameters: {}
         };
 
         await (service as unknown as { handleExternalRequest(r: ExternalRequest): Promise<void> }).handleExternalRequest(request);
@@ -91,10 +95,12 @@ describe('ExternalRequestBackendService', () => {
         };
         (service as unknown as { contributions: ContributionProvider<ExternalRequestContribution> }).contributions = emptyProvider;
 
-        const request: ExternalRequest = {
-            rawArgs: [],
+        const request: CliExternalRequest = {
+            type: 'cli',
+            raw: [],
             cwd: '/test',
-            secondInstance: false
+            secondInstance: false,
+            parameters: {}
         };
 
         await (service as unknown as { handleExternalRequest(r: ExternalRequest): Promise<void> }).handleExternalRequest(request);

@@ -15,21 +15,20 @@
 // *****************************************************************************
 
 import * as assert from 'assert';
-import { isCliInvocationMessage, CliParameters } from './cli-parameters';
+import { isCliInvocationMessage } from './cli-parameters';
 
-describe('cli-parameters', () => {
+describe('cli-parameters (backwards compatibility)', () => {
 
     describe('isCliInvocationMessage', () => {
-        it('should return true for valid CLI invocation messages', () => {
+        it('should return true for valid external request messages', () => {
             const msg = {
-                type: 'cli-invocation',
-                cliParameters: {
+                type: 'external-request',
+                request: {
+                    type: 'cli',
+                    raw: [],
                     cwd: '/test',
-                    directoryPaths: [],
-                    filePaths: [],
-                    genericParameters: [],
-                    rawArgs: [],
-                    secondInstance: false
+                    secondInstance: false,
+                    parameters: {}
                 }
             };
             assert.strictEqual(isCliInvocationMessage(msg), true);
@@ -45,7 +44,7 @@ describe('cli-parameters', () => {
         });
 
         it('should return false for strings', () => {
-            assert.strictEqual(isCliInvocationMessage('cli-invocation'), false);
+            assert.strictEqual(isCliInvocationMessage('external-request'), false);
         });
 
         it('should return false for objects with wrong type', () => {
@@ -53,36 +52,7 @@ describe('cli-parameters', () => {
         });
 
         it('should return false for objects without type', () => {
-            assert.strictEqual(isCliInvocationMessage({ cliParameters: {} }), false);
-        });
-    });
-
-    describe('CliParameters interface', () => {
-        it('should represent initial launch parameters', () => {
-            const params: CliParameters = {
-                cwd: '/home/user',
-                directoryPaths: ['/home/user/project'],
-                filePaths: ['/home/user/project/file.ts'],
-                genericParameters: ['--verbose'],
-                rawArgs: ['/home/user/project', '--verbose', '/home/user/project/file.ts'],
-                secondInstance: false
-            };
-            assert.strictEqual(params.secondInstance, false);
-            assert.strictEqual(params.directoryPaths.length, 1);
-            assert.strictEqual(params.filePaths.length, 1);
-            assert.strictEqual(params.genericParameters.length, 1);
-        });
-
-        it('should represent second-instance parameters', () => {
-            const params: CliParameters = {
-                cwd: '/home/user',
-                directoryPaths: [],
-                filePaths: [],
-                genericParameters: [],
-                rawArgs: [],
-                secondInstance: true
-            };
-            assert.strictEqual(params.secondInstance, true);
+            assert.strictEqual(isCliInvocationMessage({ request: {} }), false);
         });
     });
 });

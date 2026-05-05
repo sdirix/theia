@@ -15,15 +15,20 @@
 // *****************************************************************************
 
 import { injectable } from '@theia/core/shared/inversify';
-import { ExternalRequest, ExternalRequestContribution } from '@theia/core/lib/common/external-request';
+import { ExternalRequest, CliExternalRequest, ExternalRequestContribution } from '@theia/core/lib/common/external-request';
 
 @injectable()
 export class SampleCliFrontendContribution implements ExternalRequestContribution {
 
     onExternalRequest(request: ExternalRequest): void {
-        console.log('[api-samples] [frontend] External request received:');
-        console.log('[api-samples] [frontend]   secondInstance:', request.secondInstance);
-        console.log('[api-samples] [frontend]   cwd:', request.cwd);
-        console.log('[api-samples] [frontend]   rawArgs:', request.rawArgs);
+        console.log('[api-samples] [frontend] External request received:', request.type);
+        if (CliExternalRequest.is(request)) {
+            console.log('[api-samples] [frontend]   secondInstance:', request.secondInstance);
+            console.log('[api-samples] [frontend]   cwd:', request.cwd);
+            console.log('[api-samples] [frontend]   raw:', request.raw);
+            console.log('[api-samples] [frontend]   directory:', request.directory);
+            console.log('[api-samples] [frontend]   file:', request.file);
+            console.log('[api-samples] [frontend]   parameters:', request.parameters);
+        }
     }
 }

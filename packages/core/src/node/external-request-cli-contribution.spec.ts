@@ -19,7 +19,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { promises as fs } from 'fs';
 import { ExternalRequestCliContribution } from './external-request-cli-contribution';
-import { ExternalRequest, ExternalRequestContribution } from '../common/external-request';
+import { ExternalRequest, CliExternalRequest, ExternalRequestContribution } from '../common/external-request';
 import { ContributionProvider } from '../common/contribution-provider';
 
 describe('ExternalRequestCliContribution', () => {
@@ -67,8 +67,9 @@ describe('ExternalRequestCliContribution', () => {
 
         assert.strictEqual(receivedRequests.length, 1);
         const request = receivedRequests[0];
-        assert.ok(request.rawArgs.includes(testSubDir));
-        assert.ok(request.rawArgs.includes(testFile));
+        assert.ok(CliExternalRequest.is(request));
+        assert.ok(request.raw.includes(testSubDir));
+        assert.ok(request.raw.includes(testFile));
         assert.strictEqual(request.secondInstance, false);
     });
 
@@ -81,7 +82,9 @@ describe('ExternalRequestCliContribution', () => {
 
         assert.strictEqual(receivedRequests.length, 1);
         const request = receivedRequests[0];
-        assert.deepStrictEqual(request.rawArgs, []);
+        assert.ok(CliExternalRequest.is(request));
+        assert.deepStrictEqual(request.raw, []);
+        assert.deepStrictEqual(request.parameters, {});
     });
 
     it('should handle errors in contributions gracefully', async () => {

@@ -15,7 +15,7 @@
 // *****************************************************************************
 
 import { inject, injectable } from '@theia/core/shared/inversify';
-import { ExternalRequest, ExternalRequestContribution } from '@theia/core/lib/common/external-request';
+import { ExternalRequest, CliExternalRequest, ExternalRequestContribution } from '@theia/core/lib/common/external-request';
 import { FileUri } from '@theia/core/lib/common/file-uri';
 import { Path } from '@theia/core/lib/common/path';
 import { EditorManager, EditorOpenerOptions } from './editor-manager';
@@ -31,8 +31,11 @@ export class CliFileOpenContribution implements ExternalRequestContribution {
     protected readonly editorManager: EditorManager;
 
     async onExternalRequest(request: ExternalRequest): Promise<void> {
-        const targets = ExternalRequest.parseFileTargets(request);
-        const cwd = request.cwd ?? '';
+        if (!CliExternalRequest.is(request)) {
+            return;
+        }
+        const targets = CliExternalRequest.parseFileTargets(request);
+        const cwd = request.cwd;
         for (const target of targets) {
             const resolvedPath = this.resolvePath(target.path, cwd);
             const uri = FileUri.create(resolvedPath);
