@@ -58,6 +58,8 @@ import { BackendRemoteService } from './remote/backend-remote-service';
 import { RemoteCliContribution } from './remote/remote-cli-contribution';
 import { SettingService, SettingServiceImpl } from './setting-service';
 import { bindCorePreferences } from '../common/core-preferences';
+import { AppRequestBackendService } from './cli/app-request-backend-service';
+import { AppRequestContribution } from '../common/app-request';
 
 decorate(injectable(), ApplicationPackage);
 
@@ -167,4 +169,8 @@ export const backendApplicationModule = new ContainerModule(bind => {
     bind(PreferenceService).toService(PreferenceServiceImpl);
     bindCorePreferences(bind);
     bindTreePreferences(bind);
+
+    bindRootContributionProvider(bind, AppRequestContribution);
+    bind(AppRequestBackendService).toSelf().inSingletonScope();
+    bind(BackendApplicationContribution).toService(AppRequestBackendService);
 });

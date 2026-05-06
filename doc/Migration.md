@@ -79,6 +79,25 @@ For example, in an `electron-builder` configuration, ensure the `lib/backend/she
 ```
 
 The `lib/**/*` glob already covers `lib/backend/shell-integrations/`. If you use a more restrictive `files` pattern, make sure `lib/backend/shell-integrations/**/*` is explicitly included, as `ShellIntegrationInjector` resolves these scripts relative to `__dirname` (i.e. `lib/backend/`).
+
+### v1.72.0
+
+#### Built-in CLI support: replacement of `ElectronMainApplication.handleMainCommand`
+
+The Electron main process now classifies CLI invocations into a typed `AppRequest` shape and dispatches the result through `ElectronMainApplication.handleCliRequest`. As a consequence, the previous extension points have been removed:
+
+- The `handleMainCommand(options: ElectronMainCommandOptions)` method on `ElectronMainApplication` has been removed.
+- The `ElectronMainCommandOptions` interface has been removed.
+
+If your downstream application overrode `handleMainCommand` to react to CLI arguments, migrate to one of the new extension points:
+
+- **Classification**: rebind `ElectronCliRequestService` to add custom positional/flag classification.
+- **Pre-dispatch transformation**: bind a `CliRequestPreprocessor` to mutate the request before dispatch (multi-root assembly is the canonical example).
+- **Cross-cutting handlers**: bind `AppRequestContribution` in any of the three layers (electron-main, electron-browser, backend) to react to classified requests.
+- **Override dispatch**: subclass `ElectronMainApplication` and override `handleCliRequest` to change window-selection semantics entirely.
+
+`ElectronMainProcessArgv` has been moved from `@theia/core/lib/electron-main/electron-main-application` into its own file at `@theia/core/lib/electron-main/electron-main-process-argv`. The class is still re-exported from the old location, so existing imports continue to work.
+
 ### v1.70.0
 
 #### Removal of deprecated @theia/git extension from Theia codebase [#17148](https://github.com/eclipse-theia/theia/pull/17148)

@@ -27,8 +27,9 @@ import {
     CHANNEL_REQUEST_RELOAD, CHANNEL_APP_STATE_CHANGED, CHANNEL_SHOW_ITEM_IN_FOLDER, CHANNEL_READ_CLIPBOARD, CHANNEL_WRITE_CLIPBOARD,
     CHANNEL_KEYBOARD_LAYOUT_CHANGED, CHANNEL_IPC_CONNECTION, InternalMenuDto, CHANNEL_REQUEST_SECONDARY_CLOSE, CHANNEL_SET_BACKGROUND_COLOR,
     CHANNEL_WC_METADATA, CHANNEL_ABOUT_TO_CLOSE, CHANNEL_OPEN_WITH_SYSTEM_APP,
-    CHANNEL_OPEN_URL, CHANNEL_SET_THEME, CHANNEL_OPEN_DEVTOOLS_FOR_WINDOW
+    CHANNEL_OPEN_URL, CHANNEL_SET_THEME, CHANNEL_OPEN_DEVTOOLS_FOR_WINDOW, CHANNEL_APP_REQUEST
 } from '../electron-common/electron-api';
+import { AppRequest } from '../common/app-request';
 
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { ipcRenderer, contextBridge } = require('electron');
@@ -246,6 +247,9 @@ const api: TheiaCoreAPI = {
     sendData: data => {
         ipcRenderer.send(CHANNEL_IPC_CONNECTION, data);
     },
+
+    onAppRequest: handler => createDisposableListener(CHANNEL_APP_REQUEST, (event, request) => { handler(request as AppRequest); }),
+
     useNativeElements: !('THEIA_ELECTRON_DISABLE_NATIVE_ELEMENTS' in process.env && process.env.THEIA_ELECTRON_DISABLE_NATIVE_ELEMENTS === '1')
 };
 

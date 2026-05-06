@@ -17,10 +17,17 @@
 import type { AddressInfo } from 'net';
 import type { ExtensionInfo } from '../common/application-protocol';
 import { isPromise } from 'util/types';
+import type { AppRequest } from '../common/app-request';
 
 export interface BackendGlobal {
     serverAddress?: Promise<AddressInfo>;
     extensionInfo: ExtensionInfo[];
+    /**
+     * Invoked by `ElectronMainApplication` in `--no-cluster` mode to dispatch an
+     * `AppRequest` to backend `AppRequestContribution`s without an IPC hop.
+     * Set by `AppRequestBackendService` when it starts.
+     */
+    appRequestDispatch?: (request: AppRequest) => void;
 }
 
 /**

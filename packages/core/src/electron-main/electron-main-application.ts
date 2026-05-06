@@ -15,6 +15,7 @@
 // *****************************************************************************
 
 import { inject, injectable, named } from 'inversify';
+import { ElectronMainProcessArgv } from './electron-main-process-argv';
 import {
     screen, app, BrowserWindow, WebContents, Event as ElectronEvent, BrowserWindowConstructorOptions, nativeImage,
     nativeTheme, shell, dialog
@@ -24,7 +25,7 @@ import { Argv } from 'yargs';
 import { AddressInfo } from 'net';
 import { promises as fs } from 'fs';
 import { existsSync, mkdirSync } from 'fs-extra';
-import { fork, ForkOptions } from 'child_process';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { DefaultTheme, ElectronFrontendApplicationConfig, FrontendApplicationConfig } from '@theia/application-package/lib/application-props';
 import URI from '../common/uri';
 import { FileUri } from '../common/file-uri';
@@ -45,31 +46,16 @@ import { StopReason } from '../common/frontend-application-state';
 import { dynamicRequire } from '../node/dynamic-require';
 import { ThemeMode } from '../common/theme';
 import { backendGlobal } from '../node/backend-global';
+import { AppRequest, AppRequestContribution, AppRequestMessage, CliAppRequest } from '../common/app-request';
+import { CliRequestPreprocessor } from '../common/cli-request-preprocessor';
+import { ElectronCliRequestService } from './cli/electron-cli-request-service';
+import { CHANNEL_APP_REQUEST } from '../electron-common/electron-api';
 
 export { ElectronMainApplicationGlobals };
 
 const createYargs: (argv?: string[], cwd?: string) => Argv = require('yargs/yargs');
 
 const ELECTRON_TIMER_WARNING_THRESHOLD = 50;
-
-/**
- * Options passed to the main/default command handler.
- */
-export interface ElectronMainCommandOptions {
-
-    /**
-     * By default, the first positional argument. Should be either a relative or absolute file-system path pointing to a file or a folder.
-     */
-    readonly file?: string;
-
-    readonly cwd: string;
-
-    /**
-     * If the app is launched for the first time, `secondInstance` is false.
-     * If the app is already running but user relaunches it, `secondInstance` is true.
-     */
-    readonly secondInstance: boolean;
-}
 
 /**
  * The default entrypoint will handle a very rudimentary CLI to open workspaces by doing `app path/to/workspace`. To override this behavior, you can extend and rebind the
@@ -105,53 +91,7 @@ export interface ElectronMainApplicationContribution {
     onStop?(application: ElectronMainApplication): void;
 }
 
-// Extracted and modified the functionality from `yargs@15.4.0-beta.0`.
-// Based on https://github.com/yargs/yargs/blob/522b019c9a50924605986a1e6e0cb716d47bcbca/lib/process-argv.ts
-@injectable()
-export class ElectronMainProcessArgv {
-
-    protected get processArgvBinIndex(): number {
-        // The binary name is the first command line argument for:
-        // - bundled Electron apps: bin argv1 argv2 ... argvn
-        if (this.isBundledElectronApp) {
-            return 0;
-        }
-        // or the second one (default) for:
-        // - standard node apps: node bin.js argv1 argv2 ... argvn
-        // - unbundled Electron apps: electron bin.js argv1 arg2 ... argvn
-        return 1;
-    }
-
-    get isBundledElectronApp(): boolean {
-        // process.defaultApp is either set by electron in an electron unbundled app, or undefined
-        // see https://github.com/electron/electron/blob/master/docs/api/process.md#processdefaultapp-readonly
-        return this.isElectronApp && !(process as ElectronMainProcessArgv.ElectronMainProcess).defaultApp;
-    }
-
-    get isElectronApp(): boolean {
-        // process.versions.electron is either set by electron, or undefined
-        // see https://github.com/electron/electron/blob/master/docs/api/process.md#processversionselectron-readonly
-        return !!(process as ElectronMainProcessArgv.ElectronMainProcess).versions.electron;
-    }
-
-    getProcessArgvWithoutBin(argv = process.argv): Array<string> {
-        return argv.slice(this.processArgvBinIndex + 1);
-    }
-
-    getProcessArgvBin(argv = process.argv): string {
-        return argv[this.processArgvBinIndex];
-    }
-
-}
-
-export namespace ElectronMainProcessArgv {
-    export interface ElectronMainProcess extends NodeJS.Process {
-        readonly defaultApp: boolean;
-        readonly versions: NodeJS.ProcessVersions & {
-            readonly electron: string;
-        };
-    }
-}
+export { ElectronMainProcessArgv } from './electron-main-process-argv';
 
 @injectable()
 export class ElectronMainApplication {
@@ -176,6 +116,19 @@ export class ElectronMainApplication {
 
     @inject(Stopwatch)
     protected readonly stopwatch: Stopwatch;
+
+    @inject(ElectronCliRequestService)
+    protected readonly cliRequestService: ElectronCliRequestService;
+
+    @inject(ContributionProvider)
+    @named(CliRequestPreprocessor)
+    protected readonly cliRequestPreprocessors: ContributionProvider<CliRequestPreprocessor>;
+
+    @inject(ContributionProvider)
+    @named(AppRequestContribution)
+    protected readonly appRequestContributions: ContributionProvider<AppRequestContribution>;
+
+    protected backendProcess?: ChildProcess;
 
     protected isPortable = this.makePortable();
 
@@ -249,11 +202,8 @@ export class ElectronMainApplication {
                         () => this.startContributions());
                     startupMeasurement.info('Startup sequence completed');
 
-                    this.handleMainCommand({
-                        file: args.file,
-                        cwd: process.cwd(),
-                        secondInstance: false
-                    });
+                    const request = await this.cliRequestService.classify(process.argv, process.cwd(), false);
+                    await this.handleCliRequest(request);
                 },
             ).parse();
     }
@@ -550,24 +500,50 @@ export class ElectronMainApplication {
         app.quit();
     }
 
-    protected async handleMainCommand(options: ElectronMainCommandOptions): Promise<void> {
-        let workspacePath: string | undefined;
-        if (options.file) {
-            try {
-                workspacePath = await fs.realpath(path.resolve(options.cwd, options.file));
-            } catch {
-                console.error(`Could not resolve the workspace path. "${options.file}" is not a valid 'file' option. Falling back to the default workspace location.`);
+    protected async handleCliRequest(request: CliAppRequest): Promise<void> {
+        request = await this.runPreprocessors(request);
+
+        const directories = CliAppRequest.directories(request);
+        const workspaceFiles = CliAppRequest.workspaceFiles(request);
+        const files = CliAppRequest.files(request);
+
+        let targetWindow: TheiaElectronWindow | undefined;
+
+        // After preprocessing, multi-dir requests have already been collapsed to a single
+        // workspaceFile target, so the workspace-target branch handles them too.
+        const workspaceTarget = workspaceFiles[0] ?? directories[0];
+
+        if (workspaceTarget) {
+            const existing = this.findWindowForWorkspace(workspaceTarget.absolutePath);
+            if (existing) {
+                this.focusWindow(existing);
+                targetWindow = existing;
+            } else {
+                const browserWindow = await this.openWindowWithWorkspace(workspaceTarget.absolutePath);
+                targetWindow = this.windows.get(browserWindow.webContents.id);
             }
-        }
-        if (workspacePath !== undefined) {
-            await this.openWindowWithWorkspace(workspacePath);
+        } else if (files.length > 0) {
+            targetWindow = this.getMostRecentWindow();
+            if (!targetWindow) {
+                const browserWindow = await this.openWindowWithWorkspace(''); // restore previous workspace
+                targetWindow = this.windows.get(browserWindow.webContents.id);
+            } else {
+                this.focusWindow(targetWindow);
+            }
         } else {
-            if (options.secondInstance === false) {
-                await this.openWindowWithWorkspace(''); // restore previous workspace.
-            } else if (options.file === undefined) {
-                await this.openDefaultWindow();
+            // No targets at all — preserve today's behavior.
+            if (!request.secondInstance) {
+                const browserWindow = await this.openWindowWithWorkspace(''); // restore previous workspace
+                targetWindow = this.windows.get(browserWindow.webContents.id);
+            } else {
+                const browserWindow = await this.openDefaultWindow();
+                targetWindow = this.windows.get(browserWindow.webContents.id);
             }
         }
+
+        await this.notifyElectronMainContributions(request);
+        this.forwardAppRequestToFrontend(request, targetWindow);
+        this.forwardAppRequestToBackend(request);
     }
 
     async openUrl(url: string): Promise<void> {
@@ -576,6 +552,110 @@ export class ElectronMainApplication {
             if (window && await window.openUrl(url)) {
                 break;
             }
+        }
+    }
+
+    /**
+     * The workspace currently loaded in `electronWindow`, derived from its URL fragment.
+     * Returns `undefined` for the empty fragment and for the "open empty" sentinel.
+     */
+    protected getWindowWorkspacePath(electronWindow: TheiaElectronWindow): string | undefined {
+        try {
+            const url = new URL(electronWindow.window.webContents.getURL());
+            const fragment = decodeURI(url.hash.replace(/^#/, ''));
+            if (!fragment || fragment === DEFAULT_WINDOW_HASH) {
+                return undefined;
+            }
+            return path.normalize(fragment);
+        } catch {
+            return undefined;
+        }
+    }
+
+    protected findWindowForWorkspace(workspacePath: string): TheiaElectronWindow | undefined {
+        const target = this.normalizeWorkspacePath(workspacePath);
+        for (const electronWindow of this.windows.values()) {
+            const current = this.getWindowWorkspacePath(electronWindow);
+            if (current && this.normalizeWorkspacePath(current) === target) {
+                return electronWindow;
+            }
+        }
+        return undefined;
+    }
+
+    protected getMostRecentWindow(): TheiaElectronWindow | undefined {
+        for (const id of this.activeWindowStack) {
+            const window = this.windows.get(id);
+            if (window) {
+                return window;
+            }
+        }
+        return undefined;
+    }
+
+    protected normalizeWorkspacePath(p: string): string {
+        let normalized = path.normalize(p);
+        // Strip a trailing path separator so `/tmp/projectA/` and `/tmp/projectA` compare equal.
+        if (normalized.length > 1 && (normalized.endsWith('/') || normalized.endsWith(path.sep))) {
+            normalized = normalized.slice(0, -1);
+        }
+        return isWindows || isOSX ? normalized.toLowerCase() : normalized;
+    }
+
+    protected focusWindow(electronWindow: TheiaElectronWindow): void {
+        const window = electronWindow.window;
+        if (window.isMinimized()) {
+            window.restore();
+        }
+        window.focus();
+    }
+
+    protected async runPreprocessors(request: CliAppRequest): Promise<CliAppRequest> {
+        let prepared = request;
+        for (const preprocessor of this.cliRequestPreprocessors.getContributions()) {
+            prepared = await preprocessor.preprocess(prepared);
+        }
+        return prepared;
+    }
+
+    protected async notifyElectronMainContributions(request: AppRequest): Promise<void> {
+        for (const contribution of this.appRequestContributions.getContributions()) {
+            try {
+                await contribution.onAppRequest(request);
+            } catch (err) {
+                console.error('Error in electron-main AppRequestContribution:', err);
+            }
+        }
+    }
+
+    protected forwardAppRequestToFrontend(request: AppRequest, targetWindow?: TheiaElectronWindow): void {
+        const electronWindow = targetWindow ?? this.getMostRecentWindow();
+        if (!electronWindow) {
+            return;
+        }
+        const wc = electronWindow.window.webContents;
+        const send = () => wc.send(CHANNEL_APP_REQUEST, request);
+        if (!wc.isLoading()) {
+            send();
+            return;
+        }
+        const disposable = TheiaRendererAPI.onApplicationStateChanged(wc, state => {
+            if (state === 'ready') {
+                disposable.dispose();
+                send();
+            }
+        });
+    }
+
+    protected forwardAppRequestToBackend(request: AppRequest): void {
+        if (this.backendProcess?.connected) {
+            const message: AppRequestMessage = { type: 'app-request', request };
+            this.backendProcess.send(message);
+        } else {
+            // --no-cluster mode: backend is in-process. The backend service
+            // publishes its dispatcher onto `backendGlobal` so we can invoke it
+            // directly without an IPC hop.
+            backendGlobal.appRequestDispatch?.(request);
         }
     }
 
@@ -750,6 +830,7 @@ export class ElectronMainApplication {
                 this.processArgv.getProcessArgvWithoutBin(),
                 await this.getForkOptions(),
             );
+            this.backendProcess = backendProcess;
             return new Promise((resolve, reject) => {
                 // The backend server main file is also supposed to send the resolved http(s) server port via IPC.
                 backendProcess.on('message', (address: AddressInfo) => {
@@ -828,19 +909,8 @@ export class ElectronMainApplication {
         if (originalArgv.includes('--open-url')) {
             this.openUrl(originalArgv[originalArgv.length - 1]);
         } else {
-            createYargs(this.processArgv.getProcessArgvWithoutBin(originalArgv), cwd)
-                .help(false)
-                .command('$0 [file]', false,
-                    cmd => cmd
-                        .positional('file', { type: 'string' }),
-                    async args => {
-                        await this.handleMainCommand({
-                            file: args.file,
-                            cwd: cwd,
-                            secondInstance: true
-                        });
-                    },
-                ).parse();
+            const request = await this.cliRequestService.classify(originalArgv, cwd, true);
+            await this.handleCliRequest(request);
         }
     }
 
@@ -914,10 +984,15 @@ export class ElectronMainApplication {
         if (wrapper) {
             const listener = wrapper.onDidClose(async () => {
                 listener.dispose();
-                await this.handleMainCommand({
+                const request: CliAppRequest = {
+                    kind: 'cli',
+                    raw: [],
+                    cwd: process.cwd(),
                     secondInstance: false,
-                    cwd: process.cwd()
-                });
+                    fileSystemTargets: [],
+                    parameters: {}
+                };
+                await this.handleCliRequest(request);
                 this.restarting = false;
             });
             // If close failed or was cancelled on this occasion, don't keep listening for it.

@@ -30,6 +30,9 @@ import { ElectronMessagingContribution } from './messaging/electron-messaging-co
 import { ElectronSecurityTokenService } from './electron-security-token-service';
 import { ElectronMessagingService } from './messaging/electron-messaging-service';
 import { ElectronConnectionHandler } from './messaging/electron-connection-handler';
+import { ElectronCliRequestService } from './cli/electron-cli-request-service';
+import { CliRequestPreprocessor } from '../common/cli-request-preprocessor';
+import { AppRequestContribution } from '../common/app-request';
 
 const electronSecurityToken: ElectronSecurityToken = { value: generateUuid() };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,6 +60,10 @@ export default new ContainerModule(bind => {
     ).inSingletonScope();
 
     bind(ElectronMainProcessArgv).toSelf().inSingletonScope();
+
+    bind(ElectronCliRequestService).toSelf().inSingletonScope();
+    bindRootContributionProvider(bind, CliRequestPreprocessor);
+    bindRootContributionProvider(bind, AppRequestContribution);
 
     bind(TheiaElectronWindow).toSelf();
     bind(TheiaElectronWindowFactory).toFactory(({ container }) => (options, config) => {

@@ -16,6 +16,7 @@
 
 import { NativeKeyboardLayout } from '../common/keyboard/keyboard-layout-provider';
 import { Disposable } from '../common';
+import { AppRequest } from '../common/app-request';
 import { FrontendApplicationState, StopReason } from '../common/frontend-application-state';
 import { ThemeMode } from '../common/theme';
 
@@ -103,6 +104,9 @@ export interface TheiaCoreAPI {
 
     sendData(data: Uint8Array): void;
     onData(handler: (data: Uint8Array) => void): Disposable;
+
+    onAppRequest(handler: (request: AppRequest) => void): Disposable;
+
     useNativeElements: boolean;
 }
 
@@ -162,3 +166,5 @@ export const CHANNEL_WRITE_CLIPBOARD = 'WriteClipboard';
 
 export const CHANNEL_KEYBOARD_LAYOUT_CHANGED = 'KeyboardLayoutChanged';
 export const CHANNEL_IPC_CONNECTION = 'IpcConnection';
+
+export const CHANNEL_APP_REQUEST = 'AppRequest';

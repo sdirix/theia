@@ -15,6 +15,9 @@
       "frontend": "lib/browser/editor-frontend-module",
       "backend": "lib/node/editor-backend-module",
       "secondaryWindow": "lib/browser/editor-frontend-module"
+    },
+    {
+      "frontendElectron": "lib/electron-browser/editor-electron-browser-module"
     }
   ],
   "keywords": [

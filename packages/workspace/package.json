@@ -20,6 +20,9 @@
     },
     {
       "frontendOnly": "lib/browser-only/workspace-frontend-only-module"
+    },
+    {
+      "electronMain": "lib/electron-main/workspace-electron-main-module"
     }
   ],
   "keywords": [

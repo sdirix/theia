@@ -15,8 +15,10 @@
 // *****************************************************************************
 
 export { environment } from '@theia/application-package/lib/environment';
+export * from './app-request';
 export * from './application-error';
 export * from './cancellation';
+export * from './cli-request-preprocessor';
 export * from './command';
 export * from './contribution-filter';
 export * from './contribution-provider';
