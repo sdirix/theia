@@ -7,6 +7,8 @@
 
 <div id="badges" align="center">
 
+Test
+
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-curved)](https://github.com/eclipse-theia/theia/labels/help%20wanted)
   [![Build Status](https://github.com/eclipse-theia/theia/actions/workflows/ci-cd.yml/badge.svg?branch=master)](https://github.com/eclipse-theia/theia/actions/workflows/ci-cd.yml?query=branch%3Amaster)
   [![Publish VS Code Built-in Extensions](https://github.com/eclipse-theia/vscode-builtin-extensions/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/eclipse-theia/vscode-builtin-extensions/actions/workflows/build.yml?query=branch%3Amaster)
